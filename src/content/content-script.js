@@ -20,6 +20,7 @@
   let missingConfigUntil = 0;
   let suppressMutations = false;
   let latestRenderState = null;
+  let eventSubscription = null;
   const contextCache = new Map();
   const inFlight = new Map();
   const noteDrafts = new Map();
@@ -89,6 +90,7 @@
       renderSignalButtons(context, isPro);
       latestRenderState = { context, repo, client, isPro };
       installCodeMenuHook();
+      subscribeToRepoEvents(context, repo, client);
     } finally {
       window.setTimeout(() => {
         suppressMutations = false;
@@ -204,7 +206,7 @@
     });
 
     const header = element("div", "starcat-note-header");
-    const status = element("span", "starcat-muted");
+    const status = element("span", "starcat-muted starcat-note-status");
     const button = element("button", "btn btn-sm btn-primary", "Save");
     button.type = "button";
     button.addEventListener("click", async () => {
@@ -229,6 +231,62 @@
     header.append(sectionTitle("Starcat notes"), button);
     row.querySelector(".BorderGrid-cell").append(header, textarea, status);
     return row;
+  }
+
+  async function subscribeToRepoEvents(context, repo, client) {
+    closeEventSubscription();
+    const repoID = context?.repo?.repo_id;
+    if (!repoID) return;
+
+    try {
+      eventSubscription = await client.events(
+        { repoID },
+        {
+          onEvent: (event) => handleCompanionEvent(event, repo, repoID),
+          onError: () => {
+            closeEventSubscription();
+          }
+        }
+      );
+    } catch {
+      closeEventSubscription();
+    }
+  }
+
+  function closeEventSubscription() {
+    eventSubscription?.close?.();
+    eventSubscription = null;
+  }
+
+  function handleCompanionEvent(event, repo, repoID) {
+    if (event.type !== "note.updated") return;
+    const payload = event.data || {};
+    if (payload.repo_id && String(payload.repo_id) !== String(repoID)) return;
+    const note = payload.note;
+    if (!note) return;
+
+    const key = repo.fullName.toLowerCase();
+    const cached = contextCache.get(key);
+    if (cached?.value) {
+      cached.value.note = note;
+    }
+
+    const textarea = document.querySelector("#starcat-note-row textarea.starcat-note");
+    const status = document.querySelector("#starcat-note-row .starcat-note-status");
+    if (!textarea) return;
+
+    if (document.activeElement === textarea || noteDrafts.has(key)) {
+      if (status) status.textContent = "Updated in Starcat";
+      return;
+    }
+
+    textarea.value = note.content || "";
+    if (status) {
+      status.textContent = "Updated";
+      window.setTimeout(() => {
+        if (status.textContent === "Updated") status.textContent = "";
+      }, 2000);
+    }
   }
 
   function renderSignalButtons(context, isPro) {
@@ -519,6 +577,7 @@
   }
 
   function removeStarcatNodes() {
+    closeEventSubscription();
     document.querySelectorAll(ROOT_SELECTOR).forEach((node) => node.remove());
   }
 

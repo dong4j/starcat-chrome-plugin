@@ -141,6 +141,72 @@
       return body;
     }
 
+    async function streamEvents(params, handlers) {
+      if (!token) {
+        throw new Error("missing_token");
+      }
+
+      const query = new URLSearchParams();
+      if (params.repoID) query.set("repo_id", String(params.repoID));
+      const controller = new AbortController();
+      const response = await fetch(`${baseURL}/plugin/v1/events?${query.toString()}`, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Accept": "text/event-stream"
+        },
+        signal: controller.signal
+      });
+      if (!response.ok || !response.body) {
+        throw new Error(`events_http_${response.status}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      (async () => {
+        try {
+          while (!controller.signal.aborted) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const parts = buffer.split("\n\n");
+            buffer = parts.pop() || "";
+            for (const part of parts) {
+              const event = parseSSE(part);
+              if (event) handlers.onEvent?.(event);
+            }
+          }
+        } catch (error) {
+          if (!controller.signal.aborted) handlers.onError?.(error);
+        }
+      })();
+
+      return {
+        close() {
+          controller.abort();
+          reader.cancel().catch(() => {});
+        }
+      };
+    }
+
+    function parseSSE(chunk) {
+      const lines = chunk.split("\n");
+      let type = "message";
+      let data = "";
+      for (const line of lines) {
+        if (line.startsWith(":")) continue;
+        if (line.startsWith("event:")) type = line.slice(6).trim();
+        if (line.startsWith("data:")) data += line.slice(5).trim();
+      }
+      if (!data) return null;
+      try {
+        return { type, data: JSON.parse(data) };
+      } catch {
+        return null;
+      }
+    }
+
     return {
       ping() {
         return request("/plugin/v1/ping");
@@ -160,6 +226,9 @@
           method: "POST",
           body: JSON.stringify({ owner: repo.owner, repo: repo.repo, action })
         });
+      },
+      events(params, handlers) {
+        return streamEvents(params, handlers);
       }
     };
   }
