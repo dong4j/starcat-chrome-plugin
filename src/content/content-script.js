@@ -6,7 +6,7 @@
  * across native GitHub regions instead of a single README panel:
  * - sidebar BorderGrid: recommendations and private notes;
  * - pagehead actions: Health and OpenSSF signals;
- * - repository toolbar: Wiki and Starcat action dropdowns.
+ * - repository Code menu: Starcat wiki/action tab.
  */
 
 (function () {
@@ -19,8 +19,10 @@
   let lastURL = location.href;
   let missingConfigUntil = 0;
   let suppressMutations = false;
+  let latestRenderState = null;
   const contextCache = new Map();
   const inFlight = new Map();
+  const noteDrafts = new Map();
 
   function scheduleRefresh(reason, options = {}) {
     window.clearTimeout(scheduledTimer);
@@ -85,7 +87,8 @@
 
       renderSidebarRows(context, repo, client, isPro);
       renderSignalButtons(context, isPro);
-      renderToolbarDropdowns(context, repo, client, isPro);
+      latestRenderState = { context, repo, client, isPro };
+      installCodeMenuHook();
     } finally {
       window.setTimeout(() => {
         suppressMutations = false;
@@ -123,34 +126,67 @@
   function recommendationsList(items) {
     const list = element("div", "starcat-sidebar-list");
     for (const item of items.slice(0, 5)) {
-      const anchor = element("a", "starcat-sidebar-repo");
-      anchor.href = `https://github.com/${item.full_name}`;
-      anchor.target = "_blank";
-      anchor.rel = "noreferrer";
-      anchor.append(
-        element("span", "starcat-sidebar-repo__name", item.full_name),
-        element("span", "starcat-sidebar-repo__meta", recommendationMeta(item))
-      );
-      list.append(anchor);
+      list.append(recommendationCard(item));
     }
     return list;
   }
 
-  function recommendationMeta(item) {
-    const parts = [];
-    if (item.language) parts.push(item.language);
-    if (Number.isFinite(item.stars)) parts.push(`${item.stars.toLocaleString()} stars`);
-    if (typeof item.score === "number") parts.push(`score ${item.score.toFixed(2)}`);
-    return parts.join(" · ");
+  function recommendationCard(item) {
+    const fullName = item.full_name || "";
+    const [owner, repoName] = fullName.split("/");
+    const card = element("div", "Box d-flex p-3 width-full public source starcat-simrepo-card");
+    const content = element("div", "pinned-item-list-item-content");
+    const header = element("div", "d-flex width-full position-relative");
+    const title = element("div", "flex-1");
+    const link = element("a", "Link mr-1 text-bold wb-break-word");
+    link.href = fullName ? `/${fullName}` : "#";
+    link.append(
+      element("span", "owner text-normal", owner ? `${owner}/` : ""),
+      element("span", "repo", repoName || fullName)
+    );
+
+    title.append(octicon("repo", "octicon octicon-repo color-fg-muted mr-2", "M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75H4.5A2.5 2.5 0 0 1 2 11.5Zm2.5-1A1 1 0 0 0 3.5 2.5v9A1 1 0 0 0 4.5 12.5h8V1.5Zm.75 4.25a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5H6a.75.75 0 0 1-.75-.75Zm.75 2.25a.75.75 0 0 0 0 1.5h3.5a.75.75 0 0 0 0-1.5Z"), link);
+    header.append(title);
+    content.append(header);
+
+    if (item.description) {
+      content.append(element("p", "pinned-item-desc color-fg-muted text-small mt-2 mb-0", item.description));
+    }
+
+    const meta = element("p", "mb-0 mt-2 f6 color-fg-muted starcat-simrepo-meta");
+    if (item.language) {
+      const language = element("span", "d-inline-block mr-3");
+      const dot = element("span", "repo-language-color");
+      dot.style.backgroundColor = languageColor(item.language);
+      language.append(dot, document.createTextNode(` ${item.language}`));
+      meta.append(language);
+    }
+    if (Number.isFinite(item.stars)) {
+      const stars = element("span", "d-inline-block mr-3");
+      stars.append(octicon("star", "octicon octicon-star mr-1", "M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.212.612a.75.75 0 0 1 .416 1.279l-3.047 2.97.719 4.196a.75.75 0 0 1-1.088.791L8 12.347l-3.767 1.98a.75.75 0 0 1-1.088-.79l.72-4.197-3.048-2.97a.75.75 0 0 1 .416-1.28l4.212-.611L7.327.668A.75.75 0 0 1 8 .25Z"), document.createTextNode(item.stars.toLocaleString()));
+      meta.append(stars);
+    }
+    if (typeof item.score === "number") {
+      const score = element("span", "d-inline-block");
+      score.append(octicon("flame", "octicon octicon-flame mr-1", "M7.998 14.5c-1.427 0-2.573-.443-3.34-1.21-.757-.755-1.158-1.84-1.158-3.04 0-1.154.51-2.285 1.14-3.233.639-.961 1.43-1.79 1.99-2.323.39-.37.64-.72.77-1.006.129-.285.128-.49.08-.638a.75.75 0 0 1 1.06-.88c.716.394 1.49 1.12 2.068 2.02.43.67.742 1.454.838 2.297.18-.15.35-.32.508-.51a.75.75 0 0 1 1.316.355c.353 1.746.214 3.63-.623 5.136C11.785 13.02 10.254 14.5 7.998 14.5Z"), document.createTextNode(`score ${item.score.toFixed(2)}`));
+      meta.append(score);
+    }
+    content.append(meta);
+    card.append(content);
+    return card;
   }
 
   function renderNoteRow(note, repo, client) {
     const row = borderGridRow("starcat-note-row");
     const textarea = element("textarea", "form-control width-full starcat-note");
-    textarea.value = note.content || "";
+    const key = repo.fullName.toLowerCase();
+    textarea.value = noteDrafts.has(key) ? noteDrafts.get(key) : note.content || "";
     textarea.rows = 4;
     textarea.maxLength = 20000;
     textarea.placeholder = "Private note";
+    textarea.addEventListener("input", () => {
+      noteDrafts.set(key, textarea.value);
+    });
 
     const footer = element("div", "starcat-note-footer");
     const status = element("span", "starcat-muted");
@@ -162,7 +198,9 @@
       try {
         await client.saveNote(repo, textarea.value);
         status.textContent = "Saved";
-        contextCache.delete(repo.fullName.toLowerCase());
+        noteDrafts.delete(key);
+        const cached = contextCache.get(key);
+        if (cached?.value?.note) cached.value.note.content = textarea.value;
         window.setTimeout(() => {
           if (status.textContent === "Saved") status.textContent = "";
         }, 2000);
@@ -183,8 +221,8 @@
     if (!pageheadActions) return;
 
     pageheadActions.append(
-      signalListItem("Health", context?.health ? `${formatScore(context.health.score)} ${context.health.grade || ""}`.trim() : "Pro", isPro),
-      signalListItem("OpenSSF", context?.openssf ? formatScore(context.openssf.score) : "Pro", isPro)
+      signalListItem("Health", context?.health, isPro, "health"),
+      signalListItem("OpenSSF", context?.openssf, isPro, "openssf")
     );
   }
 
@@ -198,120 +236,150 @@
     return document.querySelector("ul.pagehead-actions");
   }
 
-  function signalListItem(label, value, enabled) {
+  function signalListItem(label, signal, enabled, kind) {
     const li = element("li", "starcat-pagehead-li");
     li.dataset.starcatCompanion = "signal";
-    const button = element("button", "btn btn-sm starcat-pagehead-btn");
+    const scoreText = enabled && signal ? formatSignalScore(signal) : "Pro";
+    const button = element("button", `btn btn-sm starcat-pagehead-btn ${enabled && signal ? scoreToneClass(signal.score, kind) : "starcat-score--locked"}`);
     button.type = "button";
-    button.disabled = !enabled;
+    button.disabled = !enabled || !signal;
     button.append(
       element("span", "starcat-pagehead-label", label),
-      element("span", "Counter", value)
+      element("span", "Counter starcat-score-counter", scoreText)
     );
     li.append(button);
     return li;
   }
 
-  function renderToolbarDropdowns(context, repo, client, isPro) {
-    const toolbar = findRepoToolbar();
-    if (!toolbar) return;
-
-    const wikiLinks = context?.wiki_links || [];
-    const wiki = toolbarDropdown({
-      id: "starcat-wiki-dropdown",
-      label: "Wiki",
-      enabled: isPro && wikiLinks.length > 0,
-      disabledText: "Starcat Pro",
-      items: wikiLinks.map((link) => ({
-        label: link.title || link.source,
-        href: link.url
-      }))
-    });
-
-    const actions = toolbarDropdown({
-      id: "starcat-actions-dropdown",
-      label: "Starcat",
-      enabled: isPro && (context?.actions?.codeflow || context?.actions?.codebase),
-      disabledText: "Starcat Pro",
-      items: [
-        {
-          label: "CodeFlow",
-          enabled: context?.actions?.codeflow === true,
-          onClick: () => client.openAction(repo, "codeflow")
-        },
-        {
-          label: "Codebase",
-          enabled: context?.actions?.codebase === true,
-          onClick: () => client.openAction(repo, "codebase")
-        }
-      ]
-    });
-
-    toolbar.insertBefore(wiki, toolbar.firstChild);
-    toolbar.insertBefore(actions, toolbar.firstChild);
-  }
-
-  function findRepoToolbar() {
-    const addFile = [...document.querySelectorAll("button,summary,a")]
-      .find((node) => /Add file/i.test(textOf(node)) || /Add file/i.test(node.getAttribute("aria-label") || ""));
+  function installCodeMenuHook() {
     const codeButton = [...document.querySelectorAll("button")]
       .find((node) => textOf(node) === "Code" && node.getAttribute("data-variant") === "primary");
-    let node = addFile;
+    if (!codeButton || codeButton.dataset.starcatCompanionCodeHook === "true") return;
+
+    codeButton.dataset.starcatCompanionCodeHook = "true";
+    codeButton.addEventListener("click", () => {
+      window.setTimeout(augmentCodeMenu, 80);
+      window.setTimeout(augmentCodeMenu, 250);
+    });
+  }
+
+  function augmentCodeMenu() {
+    if (!latestRenderState) return;
+    const menu = findOpenCodeMenu();
+    if (!menu || menu.querySelector("[data-starcat-code-panel='true']")) return;
+
+    const tabBar = findCodeMenuTabBar(menu);
+    const starcatTab = element("button", "starcat-code-tab", "Starcat");
+    starcatTab.type = "button";
+    starcatTab.dataset.starcatCompanion = "code-menu";
+
+    const panel = renderCodeMenuStarcatPanel(latestRenderState);
+    panel.hidden = true;
+
+    if (tabBar) {
+      const originalNodes = [...tabBar.parentElement.children].filter((node) => node !== tabBar);
+      starcatTab.addEventListener("click", () => {
+        starcatTab.classList.add("starcat-code-tab--active");
+        originalNodes.forEach((node) => {
+          if (node !== panel) node.classList.add("starcat-code-original-hidden");
+        });
+        panel.hidden = false;
+      });
+
+      tabBar.addEventListener("click", (event) => {
+        if (event.target === starcatTab) return;
+        starcatTab.classList.remove("starcat-code-tab--active");
+        originalNodes.forEach((node) => node.classList.remove("starcat-code-original-hidden"));
+        panel.hidden = true;
+      });
+
+      tabBar.append(starcatTab);
+      tabBar.parentElement.append(panel);
+    } else {
+      panel.hidden = false;
+      menu.append(panel);
+    }
+  }
+
+  function findOpenCodeMenu() {
+    const localTab = [...document.querySelectorAll("[role='tab'], button")]
+      .find((node) => textOf(node) === "Local");
+    let node = localTab;
     while (node && node !== document.body) {
-      if (codeButton && node.contains(codeButton)) return node;
+      if (/Clone|Codespaces|Download ZIP/.test(textOf(node))
+        && (node.getAttribute("role") === "dialog" || /Overlay|AnchoredOverlay/.test(String(node.className)))) {
+        return node;
+      }
       node = node.parentElement;
     }
-    return addFile?.parentElement || codeButton?.parentElement || null;
+
+    const candidates = [...document.querySelectorAll("[role='dialog'], [class*='Overlay'], .Popover, .SelectMenu, .Box")]
+      .filter((node) => node.offsetParent !== null && /Clone|Codespaces|Download ZIP/.test(textOf(node)));
+    return candidates.sort((a, b) => textOf(a).length - textOf(b).length)[0] || null;
   }
 
-  function toolbarDropdown({ id, label, enabled, disabledText, items }) {
-    const details = element("details", "details-reset details-overlay position-relative starcat-toolbar-dropdown");
-    details.id = id;
-    details.dataset.starcatCompanion = "toolbar";
-
-    const summary = element("summary", "btn starcat-toolbar-summary");
-    summary.setAttribute("role", "button");
-    summary.setAttribute("aria-disabled", enabled ? "false" : "true");
-    summary.append(document.createTextNode(label), octiconTriangleDown());
-
-    const menu = element("div", "SelectMenu right-0 starcat-toolbar-menu");
-    const list = element("div", "SelectMenu-list");
-    const visibleItems = items.filter((item) => item.href || item.onClick || item.enabled !== false);
-    if (enabled && visibleItems.length) {
-      for (const item of visibleItems) {
-        list.append(toolbarMenuItem(item, details));
-      }
-    } else {
-      list.append(element("div", "SelectMenu-item color-fg-muted", disabledText));
-    }
-    menu.append(list);
-    details.append(summary, menu);
-    return details;
+  function findCodeMenuTabBar(menu) {
+    return [...menu.querySelectorAll("[role='tablist'], nav, div")]
+      .find((node) => {
+        const childLabels = [...node.children].map(textOf).filter(Boolean);
+        return node.children.length <= 6
+          && childLabels.some((label) => label === "Local")
+          && childLabels.some((label) => label === "Codespaces");
+      });
   }
 
-  function toolbarMenuItem(item, details) {
-    if (item.href) {
-      const anchor = element("a", "SelectMenu-item", item.label);
-      anchor.href = item.href;
-      anchor.target = "_blank";
-      anchor.rel = "noreferrer";
-      return anchor;
-    }
+  function renderCodeMenuStarcatPanel({ context, repo, client, isPro }) {
+    const panel = element("div", "starcat-code-panel");
+    panel.dataset.starcatCodePanel = "true";
+    panel.dataset.starcatCompanion = "code-menu";
 
-    const button = element("button", "SelectMenu-item width-full", item.label);
+    const wikiLinks = context?.wiki_links || [];
+    const actions = context?.actions || {};
+    panel.append(
+      element("h3", "starcat-code-panel__title", "Starcat"),
+      codeMenuGroup("Wiki", isPro && wikiLinks.length
+        ? wikiLinks.map((link) => codeMenuLink(link.title || link.source || "Wiki", link.url))
+        : [codeMenuEmpty(isPro ? "No wiki links from Starcat." : "Starcat Pro required.")]),
+      codeMenuGroup("Actions", [
+        codeMenuAction("CodeFlow", isPro && actions.codeflow === true, () => client.openAction(repo, "codeflow")),
+        codeMenuAction("Codebase", isPro && actions.codebase === true, () => client.openAction(repo, "codebase"))
+      ])
+    );
+    return panel;
+  }
+
+  function codeMenuGroup(title, children) {
+    const group = element("div", "starcat-code-group");
+    group.append(element("div", "starcat-code-group__title", title), ...children);
+    return group;
+  }
+
+  function codeMenuLink(label, href) {
+    const anchor = element("a", "starcat-code-item", label);
+    anchor.href = href;
+    anchor.target = "_blank";
+    anchor.rel = "noreferrer";
+    return anchor;
+  }
+
+  function codeMenuAction(label, enabled, onClick) {
+    const button = element("button", "starcat-code-item", label);
     button.type = "button";
-    button.disabled = item.enabled === false;
+    button.disabled = !enabled;
     button.addEventListener("click", async () => {
-      if (button.disabled || typeof item.onClick !== "function") return;
+      if (button.disabled) return;
       button.disabled = true;
       try {
-        await item.onClick();
-        details.open = false;
+        await onClick();
       } finally {
         button.disabled = false;
       }
     });
     return button;
+  }
+
+  function codeMenuEmpty(text) {
+    return element("div", "starcat-code-empty", text);
   }
 
   function borderGridRow(id) {
@@ -335,25 +403,63 @@
     return notice;
   }
 
+  function formatSignalScore(signal) {
+    const score = formatScore(signal.score);
+    return signal.grade ? `${score} ${signal.grade}` : score;
+  }
+
   function formatScore(value) {
     return typeof value === "number" ? value.toFixed(1) : "N/A";
   }
 
-  function octiconTriangleDown() {
+  function scoreToneClass(value, kind) {
+    if (typeof value !== "number") return "starcat-score--unknown";
+    const normalized = kind === "openssf" ? value * 10 : value;
+    if (normalized >= 80) return "starcat-score--good";
+    if (normalized >= 60) return "starcat-score--warn";
+    return "starcat-score--danger";
+  }
+
+  function languageColor(language) {
+    const colors = {
+      TypeScript: "#3178c6",
+      JavaScript: "#f1e05a",
+      "C++": "#f34b7d",
+      Swift: "#f05138",
+      Python: "#3572a5",
+      Rust: "#dea584",
+      Go: "#00add8",
+      Java: "#b07219",
+      CSS: "#563d7c",
+      HTML: "#e34c26",
+      Ruby: "#701516",
+      PHP: "#4f5d95",
+      Kotlin: "#a97bff",
+      Shell: "#89e051"
+    };
+    return colors[language] || "var(--fgColor-muted, #656d76)";
+  }
+
+  function octicon(name, className, pathData) {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("aria-hidden", "true");
     svg.setAttribute("viewBox", "0 0 16 16");
     svg.setAttribute("width", "16");
     svg.setAttribute("height", "16");
-    svg.setAttribute("class", "octicon octicon-triangle-down ml-1");
+    svg.setAttribute("class", className);
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("d", "m4.427 7.427 3.396 3.396a.25.25 0 0 0 .354 0l3.396-3.396A.25.25 0 0 0 11.396 7H4.604a.25.25 0 0 0-.177.427Z");
+    path.setAttribute("d", pathData);
     svg.append(path);
+    svg.dataset.octicon = name;
     return svg;
   }
 
   function removeStarcatNodes() {
     document.querySelectorAll(ROOT_SELECTOR).forEach((node) => node.remove());
+  }
+
+  function isStarcatInputActive() {
+    return document.activeElement?.closest?.(ROOT_SELECTOR) !== null;
   }
 
   function textOf(node) {
@@ -372,8 +478,16 @@
     if (location.href !== lastURL) {
       lastURL = location.href;
       contextCache.clear();
+      noteDrafts.clear();
+      scheduleRefresh("url", { force: true });
+      return;
     }
-    scheduleRefresh("mutation");
+    if (isStarcatInputActive()) return;
+    installCodeMenuHook();
+    augmentCodeMenu();
+    if (StarcatCompanion.parseGitHubRepo(location.href) && !document.querySelector(ROOT_SELECTOR)) {
+      scheduleRefresh("mount-missing");
+    }
   });
   observer.observe(document.documentElement, { childList: true, subtree: true });
 
