@@ -73,12 +73,16 @@
   resize: vertical;
 }
 
-.starcat-note-footer {
+.starcat-note-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-top: 8px;
+  margin-bottom: 10px;
+}
+
+.starcat-note-header .h4 {
+  margin-bottom: 0 !important;
 }
 
 .starcat-pagehead-li {

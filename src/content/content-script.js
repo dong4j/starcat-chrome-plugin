@@ -203,7 +203,7 @@
       noteDrafts.set(key, textarea.value);
     });
 
-    const footer = element("div", "starcat-note-footer");
+    const header = element("div", "starcat-note-header");
     const status = element("span", "starcat-muted");
     const button = element("button", "btn btn-sm btn-primary", "Save");
     button.type = "button";
@@ -226,8 +226,8 @@
       }
     });
 
-    footer.append(status, button);
-    row.querySelector(".BorderGrid-cell").append(sectionTitle("Starcat notes"), textarea, footer);
+    header.append(sectionTitle("Starcat notes"), button);
+    row.querySelector(".BorderGrid-cell").append(header, textarea, status);
     return row;
   }
 
