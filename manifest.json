@@ -12,7 +12,8 @@
   "permissions": ["storage"],
   "host_permissions": [
     "https://github.com/*",
-    "http://127.0.0.1:*/*"
+    "http://127.0.0.1:*/*",
+    "http://localhost:*/*"
   ],
   "content_scripts": [
     {

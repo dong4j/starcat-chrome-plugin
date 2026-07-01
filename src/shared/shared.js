@@ -44,9 +44,11 @@
     try {
       const url = new URL(raw);
       const isLoopback = url.hostname === "127.0.0.1" || url.hostname === "localhost";
-      const isHTTP = url.protocol === "http:" || url.protocol === "https:";
-      if (isLoopback && isHTTP && url.port) {
-        url.pathname = url.pathname.replace(/\/+$/, "");
+      if (isLoopback && url.port) {
+        // Starcat's loopback Companion service is plain HTTP. Normalizing any
+        // accidental https:// input avoids Safari/Chrome trying TLS on 127.0.0.1.
+        url.protocol = "http:";
+        url.pathname = "";
         url.search = "";
         url.hash = "";
         return url.toString().replace(/\/$/, "");

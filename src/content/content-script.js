@@ -117,9 +117,9 @@
   }
 
   function insertNoteRow(sidebar, noteRow) {
-    const deploymentsRow = findSidebarRowByTitle(sidebar, "Deployments");
-    if (deploymentsRow?.parentElement) {
-      deploymentsRow.parentElement.insertBefore(noteRow, deploymentsRow.nextSibling);
+    const aboutRow = findSidebarRowByTitle(sidebar, "About");
+    if (aboutRow?.parentElement) {
+      aboutRow.parentElement.insertBefore(noteRow, aboutRow.nextSibling);
       return;
     }
     sidebar.append(noteRow);
