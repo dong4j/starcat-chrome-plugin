@@ -102,7 +102,7 @@
 
     sidebar.append(renderRecommendationsRow(context?.recommendations || [], isPro));
     if (context?.note?.editable) {
-      sidebar.append(renderNoteRow(context.note, repo, client));
+      insertNoteRow(sidebar, renderNoteRow(context.note, repo, client));
     }
   }
 
@@ -112,6 +112,21 @@
       || document.querySelector("[data-testid='repository-sidebar'] .BorderGrid")
       || document.querySelector("[data-testid='repository-sidebar']")
       || document.querySelector(".Layout-sidebar");
+  }
+
+  function insertNoteRow(sidebar, noteRow) {
+    const deploymentsRow = findSidebarRowByTitle(sidebar, "Deployments");
+    if (deploymentsRow?.parentElement) {
+      deploymentsRow.parentElement.insertBefore(noteRow, deploymentsRow.nextSibling);
+      return;
+    }
+    sidebar.append(noteRow);
+  }
+
+  function findSidebarRowByTitle(sidebar, title) {
+    return [...sidebar.querySelectorAll(".BorderGrid-row")]
+      .find((row) => [...row.querySelectorAll("h2, h3, .h4, .h5")]
+        .some((heading) => textOf(heading).startsWith(title)));
   }
 
   function renderRecommendationsRow(items, isPro) {
@@ -277,8 +292,10 @@
     panel.hidden = true;
 
     if (tabBar) {
-      const originalNodes = [...tabBar.parentElement.children].filter((node) => node !== tabBar);
-      starcatTab.addEventListener("click", () => {
+      const tabShell = [...menu.children].find((node) => node.contains(tabBar)) || tabBar;
+      const originalNodes = [...menu.children].filter((node) => node !== tabShell && node !== panel);
+      starcatTab.addEventListener("click", (event) => {
+        event.stopPropagation();
         starcatTab.classList.add("starcat-code-tab--active");
         originalNodes.forEach((node) => {
           if (node !== panel) node.classList.add("starcat-code-original-hidden");
@@ -294,7 +311,7 @@
       });
 
       tabBar.append(starcatTab);
-      tabBar.parentElement.append(panel);
+      menu.append(panel);
     } else {
       panel.hidden = false;
       menu.append(panel);
@@ -338,11 +355,11 @@
     panel.append(
       element("h3", "starcat-code-panel__title", "Starcat"),
       codeMenuGroup("Wiki", isPro && wikiLinks.length
-        ? wikiLinks.map((link) => codeMenuLink(link.title || link.source || "Wiki", link.url))
+        ? wikiLinks.map((link) => codeMenuLink(link.title || link.source || "Wiki", link.url, wikiIconFor(link)))
         : [codeMenuEmpty(isPro ? "No wiki links from Starcat." : "Starcat Pro required.")]),
       codeMenuGroup("Actions", [
-        codeMenuAction("CodeFlow", isPro && actions.codeflow === true, () => client.openAction(repo, "codeflow")),
-        codeMenuAction("Codebase", isPro && actions.codebase === true, () => client.openAction(repo, "codebase"))
+        codeMenuAction("CodeFlow", isPro && actions.codeflow === true, codeMenuIcon("codeflow"), () => client.openAction(repo, "codeflow")),
+        codeMenuAction("Codebase", isPro && actions.codebase === true, codeMenuIcon("codebase"), () => client.openAction(repo, "codebase"))
       ])
     );
     return panel;
@@ -354,18 +371,20 @@
     return group;
   }
 
-  function codeMenuLink(label, href) {
-    const anchor = element("a", "starcat-code-item", label);
+  function codeMenuLink(label, href, iconURL) {
+    const anchor = element("a", "starcat-code-item");
     anchor.href = href;
     anchor.target = "_blank";
     anchor.rel = "noreferrer";
+    anchor.append(codeMenuIconNode(iconURL, label), element("span", "starcat-code-item__label", label));
     return anchor;
   }
 
-  function codeMenuAction(label, enabled, onClick) {
-    const button = element("button", "starcat-code-item", label);
+  function codeMenuAction(label, enabled, iconURL, onClick) {
+    const button = element("button", "starcat-code-item");
     button.type = "button";
     button.disabled = !enabled;
+    button.append(codeMenuIconNode(iconURL, label), element("span", "starcat-code-item__label", label));
     button.addEventListener("click", async () => {
       if (button.disabled) return;
       button.disabled = true;
@@ -380,6 +399,51 @@
 
   function codeMenuEmpty(text) {
     return element("div", "starcat-code-empty", text);
+  }
+
+  function wikiIconFor(link) {
+    const source = `${link.source || ""} ${link.title || ""}`.toLowerCase();
+    if (source.includes("deepwiki")) return codeMenuIcon("deepwiki");
+    if (source.includes("zread")) return codeMenuIcon("zread");
+    return codeMenuIcon("wiki");
+  }
+
+  function codeMenuIcon(kind) {
+    const dark = prefersDarkMode();
+    const localIcons = {
+      deepwiki: dark ? "deepwiki-dark.png" : "deepwiki.png",
+      zread: dark ? "zread-dark.png" : "zread.png"
+    };
+    if (localIcons[kind]) {
+      return chrome.runtime.getURL(`src/assets/starcat-menu/${localIcons[kind]}`);
+    }
+    const remoteIcons = {
+      codeflow: "https://github.com/braedonsaunders.png?size=64",
+      codebase: "https://github.com/DeusData.png?size=64",
+      wiki: "https://github.githubassets.com/favicons/favicon.svg"
+    };
+    return remoteIcons[kind] || remoteIcons.wiki;
+  }
+
+  function codeMenuIconNode(src, label) {
+    const image = element("img", "starcat-code-item__icon");
+    image.src = src;
+    image.alt = "";
+    image.loading = "lazy";
+    image.decoding = "async";
+    image.addEventListener("error", () => {
+      image.hidden = true;
+    }, { once: true });
+    image.setAttribute("aria-hidden", "true");
+    image.title = label;
+    return image;
+  }
+
+  function prefersDarkMode() {
+    const colorMode = document.documentElement.getAttribute("data-color-mode");
+    if (colorMode === "dark") return true;
+    if (colorMode === "light") return false;
+    return window.matchMedia?.("(prefers-color-scheme: dark)")?.matches === true;
   }
 
   function borderGridRow(id) {

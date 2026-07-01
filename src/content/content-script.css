@@ -180,7 +180,9 @@
 }
 
 .starcat-code-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   width: 100%;
   padding: 8px 10px;
   border: 1px solid var(--borderColor-muted, #d8dee4);
@@ -190,6 +192,21 @@
   text-align: left;
   text-decoration: none;
   cursor: pointer;
+}
+
+.starcat-code-item__icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+
+.starcat-code-item__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .starcat-code-item:hover {
