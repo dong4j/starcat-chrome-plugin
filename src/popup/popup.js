@@ -7,14 +7,14 @@
 
 (async function () {
   const form = document.querySelector("#popup-form");
-  const portInput = document.querySelector("#port");
+  const serviceURLInput = document.querySelector("#service-url");
   const tokenInput = document.querySelector("#token");
   const testButton = document.querySelector("#test");
   const openOptionsButton = document.querySelector("#open-options");
   const status = document.querySelector("#status");
 
   const config = await StarcatCompanion.loadConfig();
-  portInput.value = String(config.port);
+  serviceURLInput.value = config.serviceURL;
   tokenInput.value = config.token;
 
   function setStatus(message, tone = "") {
@@ -28,7 +28,7 @@
 
   function formConfig() {
     return {
-      port: portInput.value,
+      serviceURL: serviceURLInput.value,
       token: tokenInput.value
     };
   }
@@ -36,6 +36,7 @@
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     await StarcatCompanion.saveConfig(formConfig());
+    serviceURLInput.value = (await StarcatCompanion.loadConfig()).serviceURL;
     setStatus("Saved.", "success");
   });
 
@@ -45,7 +46,9 @@
     try {
       const current = formConfig();
       await StarcatCompanion.saveConfig(current);
-      const client = StarcatCompanion.createClient(current);
+      const saved = await StarcatCompanion.loadConfig();
+      serviceURLInput.value = saved.serviceURL;
+      const client = StarcatCompanion.createClient(saved);
       const pong = await client.ping();
       setStatus(`Connected to ${pong.app || "Starcat"}.`, "success");
     } catch (error) {

@@ -379,7 +379,7 @@
 
   window.addEventListener("popstate", () => scheduleRefresh("popstate", { force: true }));
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === "local" && (changes.starcatCompanionPort || changes.starcatCompanionToken)) {
+    if (area === "local" && (changes.starcatCompanionServiceURL || changes.starcatCompanionPort || changes.starcatCompanionToken)) {
       contextCache.clear();
       missingConfigUntil = 0;
       scheduleRefresh("config", { force: true });

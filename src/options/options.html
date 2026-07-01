@@ -8,31 +8,143 @@
   </head>
   <body>
     <main class="page">
-      <header class="header">
-        <div>
-          <h1>Starcat Browser Plugin</h1>
-          <p>Connect this extension to the Starcat local service.</p>
+      <header class="topbar">
+        <div class="switch-group" aria-label="Theme">
+          <button class="switch-button" type="button" data-theme-option="system" data-i18n="theme.system">System</button>
+          <button class="switch-button" type="button" data-theme-option="light" data-i18n="theme.light">Light</button>
+          <button class="switch-button" type="button" data-theme-option="dark" data-i18n="theme.dark">Dark</button>
+        </div>
+        <div class="switch-group" aria-label="Language">
+          <button class="switch-button" type="button" data-locale-option="en">English</button>
+          <button class="switch-button" type="button" data-locale-option="zh">中文</button>
         </div>
       </header>
 
-      <form id="options-form" class="panel">
-        <label class="field">
-          <span>Local port</span>
-          <input id="port" name="port" inputmode="numeric" autocomplete="off" placeholder="5051">
-        </label>
-
-        <label class="field">
-          <span>Bearer token</span>
-          <input id="token" name="token" type="password" autocomplete="off" spellcheck="false">
-        </label>
-
-        <div class="actions">
-          <button id="save" type="submit">Save</button>
-          <button id="test" type="button">Test Connection</button>
+      <section class="hero">
+        <div class="hero__copy">
+          <p class="eyebrow" data-i18n="hero.eyebrow">GitHub companion</p>
+          <h1 data-i18n="hero.title">Starcat Browser Plugin</h1>
+          <p class="hero__lead" data-i18n="hero.lead">
+            Bring Starcat context into GitHub repository pages while keeping data
+            routed through the local Starcat app.
+          </p>
         </div>
+      </section>
 
-        <p id="status" class="status" role="status" aria-live="polite"></p>
-      </form>
+      <section class="layout">
+        <form id="options-form" class="panel panel--form">
+          <div class="panel__heading">
+            <p class="eyebrow" data-i18n="pairing.eyebrow">Pairing</p>
+            <h2 data-i18n="pairing.title">Local service</h2>
+            <p data-i18n="pairing.description">Use the service URL and token shown in Starcat Settings &gt; Browser Plugin.</p>
+          </div>
+
+          <label class="field">
+            <span data-i18n="field.serviceURL">Service URL</span>
+            <input id="service-url" name="serviceURL" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:5001">
+          </label>
+
+          <label class="field">
+            <span data-i18n="field.token">Bearer token</span>
+            <input id="token" name="token" type="password" autocomplete="off" spellcheck="false">
+          </label>
+
+          <div class="actions">
+            <button id="save" class="button button--primary" type="submit" data-i18n="action.save">Save</button>
+            <button id="test" class="button" type="button" data-i18n="action.test">Test Connection</button>
+          </div>
+
+          <p id="status" class="status" role="status" aria-live="polite"></p>
+        </form>
+
+        <aside class="panel panel--links">
+          <div class="panel__heading">
+            <p class="eyebrow" data-i18n="links.eyebrow">Resources</p>
+            <h2 data-i18n="links.title">Links</h2>
+          </div>
+
+          <a class="link-card" href="https://starcat.ink" target="_blank" rel="noreferrer">
+            <span>
+              <strong data-i18n="links.website.title">Starcat website</strong>
+              <small data-i18n="links.website.body">Product updates and downloads</small>
+            </span>
+            <span aria-hidden="true" data-i18n="links.open">Open</span>
+          </a>
+
+          <a class="link-card" href="https://starcat.ink/privacy" target="_blank" rel="noreferrer">
+            <span>
+              <strong data-i18n="links.privacy.title">Privacy policy</strong>
+              <small data-i18n="links.privacy.body">How Starcat handles local and network data</small>
+            </span>
+            <span aria-hidden="true" data-i18n="links.open">Open</span>
+          </a>
+
+          <div class="notice">
+            <strong data-i18n="notice.title">Local-first boundary</strong>
+            <p data-i18n="notice.body">The extension stores only the service URL and token. Repository context and notes stay owned by Starcat.</p>
+          </div>
+        </aside>
+      </section>
+
+      <section class="info-grid" aria-label="Plugin information">
+        <article class="panel">
+          <div class="panel__heading">
+            <p class="eyebrow" data-i18n="surfaces.eyebrow">GitHub surfaces</p>
+            <h2 data-i18n="surfaces.title">What appears where</h2>
+          </div>
+          <ul class="surface-list">
+            <li><span data-i18n="surfaces.about.label">About sidebar</span><strong data-i18n="surfaces.about.value">Similar repos, private notes</strong></li>
+            <li><span data-i18n="surfaces.signals.label">Watch/Fork/Starred row</span><strong data-i18n="surfaces.signals.value">Health, OpenSSF</strong></li>
+            <li><span data-i18n="surfaces.toolbar.label">Add file/Code toolbar</span><strong data-i18n="surfaces.toolbar.value">Wiki, CodeFlow, Codebase</strong></li>
+          </ul>
+        </article>
+
+        <article class="panel">
+          <div class="panel__heading">
+            <p class="eyebrow" data-i18n="pro.eyebrow">Starcat Pro</p>
+            <h2 data-i18n="pro.title">Premium capabilities</h2>
+          </div>
+          <div class="feature-matrix">
+            <div class="feature-row">
+              <span data-i18n="pro.free.label">Free</span>
+              <p data-i18n="pro.free.body">Local pairing, GitHub page entry points, and private notes for starred repositories.</p>
+            </div>
+            <div class="feature-row feature-row--pro">
+              <span data-i18n="pro.pro.label">Pro</span>
+              <p data-i18n="pro.pro.body">Similar repositories, Wiki links, Health, OpenSSF, CodeFlow, and Codebase actions.</p>
+            </div>
+          </div>
+          <p class="muted" data-i18n="pro.note">
+            Non-Pro users still see the entry points, but Pro-only controls are disabled and no Pro data is returned.
+          </p>
+        </article>
+
+        <article class="panel panel--wide">
+          <div class="panel__heading">
+            <p class="eyebrow" data-i18n="setup.eyebrow">Setup</p>
+            <h2 data-i18n="setup.title">How to use</h2>
+          </div>
+          <ol class="steps">
+            <li data-i18n="setup.step1">Open Starcat and enable Browser Plugin Service.</li>
+            <li data-i18n="setup.step2">Copy the service URL and bearer token into this page.</li>
+            <li data-i18n="setup.step3">Click Test Connection and confirm the Starcat app responds.</li>
+            <li data-i18n="setup.step4">Open a GitHub repository page and refresh it once.</li>
+          </ol>
+        </article>
+
+        <article class="panel panel--wide">
+          <div class="panel__heading">
+            <p class="eyebrow" data-i18n="troubleshooting.eyebrow">Troubleshooting</p>
+            <h2 data-i18n="troubleshooting.title">Quick checks</h2>
+          </div>
+          <div class="check-list">
+            <p data-i18n="troubleshooting.check1">Starcat must be running, and the Browser Plugin Service must be enabled.</p>
+            <p data-i18n="troubleshooting.check2">The extension must be reloaded after local plugin files change.</p>
+            <p data-i18n="troubleshooting.check3">GitHub pages may need a hard refresh after changing the service URL or token.</p>
+            <p data-i18n-html="troubleshooting.check4">Requests go to <code>127.0.0.1</code>; firewall or proxy tools can block them.</p>
+          </div>
+        </article>
+      </section>
     </main>
 
     <script src="../shared/shared.js"></script>

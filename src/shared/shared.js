@@ -1,18 +1,19 @@
 /*
  * Starcat Companion shared utilities.
  *
- * The extension deliberately stores only the local port and Companion bearer
+ * The extension deliberately stores only the local service URL and Companion bearer
  * token. GitHub data, notes, health scores, and actions remain owned by the
  * Starcat app and are fetched through the loopback API.
  */
 
 (function () {
   const STORAGE_KEYS = {
+    serviceURL: "starcatCompanionServiceURL",
     port: "starcatCompanionPort",
     token: "starcatCompanionToken"
   };
 
-  const DEFAULT_PORT = 5051;
+  const DEFAULT_SERVICE_URL = "http://127.0.0.1:5001";
   const REPO_SEGMENT_BLOCKLIST = new Set([
     "about",
     "apps",
@@ -36,12 +37,24 @@
     "trending"
   ]);
 
-  function normalizePort(value) {
-    const parsed = Number.parseInt(String(value || ""), 10);
-    if (Number.isInteger(parsed) && parsed >= 1024 && parsed <= 65535) {
-      return parsed;
+  function normalizeServiceURL(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return DEFAULT_SERVICE_URL;
+
+    try {
+      const url = new URL(raw);
+      const isLoopback = url.hostname === "127.0.0.1" || url.hostname === "localhost";
+      const isHTTP = url.protocol === "http:" || url.protocol === "https:";
+      if (isLoopback && isHTTP && url.port) {
+        url.pathname = url.pathname.replace(/\/+$/, "");
+        url.search = "";
+        url.hash = "";
+        return url.toString().replace(/\/$/, "");
+      }
+    } catch {
+      // Fall through to the default. The local API should never be a relative URL.
     }
-    return DEFAULT_PORT;
+    return DEFAULT_SERVICE_URL;
   }
 
   function normalizeToken(value) {
@@ -49,16 +62,22 @@
   }
 
   async function loadConfig() {
-    const stored = await chrome.storage.local.get([STORAGE_KEYS.port, STORAGE_KEYS.token]);
+    const stored = await chrome.storage.local.get([
+      STORAGE_KEYS.serviceURL,
+      STORAGE_KEYS.port,
+      STORAGE_KEYS.token
+    ]);
+    const migratedURL = stored[STORAGE_KEYS.serviceURL]
+      || (stored[STORAGE_KEYS.port] ? `http://127.0.0.1:${stored[STORAGE_KEYS.port]}` : DEFAULT_SERVICE_URL);
     return {
-      port: normalizePort(stored[STORAGE_KEYS.port]),
+      serviceURL: normalizeServiceURL(migratedURL),
       token: normalizeToken(stored[STORAGE_KEYS.token])
     };
   }
 
   async function saveConfig(config) {
     await chrome.storage.local.set({
-      [STORAGE_KEYS.port]: normalizePort(config.port),
+      [STORAGE_KEYS.serviceURL]: normalizeServiceURL(config.serviceURL),
       [STORAGE_KEYS.token]: normalizeToken(config.token)
     });
   }
@@ -86,9 +105,8 @@
   }
 
   function createClient(config) {
-    const port = normalizePort(config.port);
+    const baseURL = normalizeServiceURL(config.serviceURL);
     const token = normalizeToken(config.token);
-    const baseURL = `http://127.0.0.1:${port}`;
 
     async function request(path, options = {}) {
       if (!token) {
@@ -147,7 +165,8 @@
   }
 
   globalThis.StarcatCompanion = {
-    DEFAULT_PORT,
+    DEFAULT_SERVICE_URL,
+    normalizeServiceURL,
     loadConfig,
     saveConfig,
     parseGitHubRepo,
