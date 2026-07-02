@@ -35,6 +35,11 @@
   }
 
   async function refreshSurfaces(_reason, options = {}) {
+    if (isGoogleSearchPage()) {
+      await refreshSearchResultSurfaces(options);
+      return;
+    }
+
     const repo = StarcatCompanion.parseGitHubRepo(location.href);
     if (!repo) {
       removeStarcatNodes();
@@ -56,6 +61,28 @@
     const client = StarcatCompanion.createClient(config);
     const context = await loadContext(client, repo, options.force === true);
     renderSurfaces(context, repo, client);
+  }
+
+  async function refreshSearchResultSurfaces(options = {}) {
+    if (Date.now() < missingConfigUntil) {
+      removeStarcatNodes();
+      return;
+    }
+
+    const config = await StarcatCompanion.loadConfig();
+    if (!config.token) {
+      missingConfigUntil = Date.now() + MISSING_CONFIG_COOLDOWN_MS;
+      removeStarcatNodes();
+      return;
+    }
+
+    const client = StarcatCompanion.createClient(config);
+    const targets = findSearchResultRepoTargets();
+    await Promise.all(targets.map(async ({ repo, title }) => {
+      const context = await loadContext(client, repo, options.force === true).catch(() => null);
+      if (context?.repo?.is_starred !== true) return;
+      renderSearchResultBadges(title, repo, context, client);
+    }));
   }
 
   async function loadContext(client, repo, force) {
@@ -86,9 +113,9 @@
       removeStarcatNodes();
       const isPro = context?.entitlement?.is_pro === true;
 
-      renderSidebarRows(context, repo, client, isPro);
-      renderSignalButtons(context, isPro);
       latestRenderState = { context, repo, client, isPro };
+      renderSidebarRows(context, repo, client, isPro);
+      renderSignalButtons(context, repo, client, isPro);
       installCodeMenuHook();
       subscribeToRepoEvents(context, repo, client);
     } finally {
@@ -105,6 +132,9 @@
     sidebar.append(renderRecommendationsRow(context?.recommendations || [], isPro));
     if (context?.note?.editable) {
       insertNoteRow(sidebar, renderNoteRow(context.note, repo, client));
+    }
+    if (context?.repo?.is_starred === true) {
+      insertNoteRow(sidebar, renderTagsRow(context, repo, client));
     }
   }
 
@@ -233,6 +263,137 @@
     return row;
   }
 
+  function renderTagsRow(context, repo, client) {
+    const row = borderGridRow("starcat-tags-row");
+    const key = repo.fullName.toLowerCase();
+    const assigned = Array.isArray(context?.tags) ? context.tags : [];
+    const allTags = Array.isArray(context?.available_tags) ? context.available_tags : [];
+
+    const header = element("div", "starcat-tags-header");
+    const status = element("span", "starcat-muted starcat-tags-status");
+    const editButton = element("button", "btn btn-sm", "Edit");
+    editButton.type = "button";
+    header.append(sectionTitle("Starcat tags"), editButton);
+
+    const chips = element("div", "starcat-tag-chips");
+    renderTagChips(chips, assigned, async (tag) => {
+      const next = assigned.filter((item) => item.id !== tag.id).map((item) => item.id);
+      await saveTags(client, repo, key, next, chips, status);
+    });
+
+    const editor = renderTagEditor(allTags, new Set(assigned.map((tag) => tag.id)), async () => {
+      const selected = [...editor.querySelectorAll("input[type='checkbox']:checked")].map((node) => node.value);
+      await saveTags(client, repo, key, selected, chips, status);
+      editor.hidden = true;
+    }, () => {
+      editor.hidden = true;
+    });
+    editor.hidden = true;
+
+    editButton.addEventListener("click", () => {
+      editor.hidden = !editor.hidden;
+    });
+
+    row.querySelector(".BorderGrid-cell").append(header, chips, editor, status);
+    return row;
+  }
+
+  function renderTagChips(container, tags, onRemove) {
+    container.replaceChildren();
+    if (!tags.length) {
+      container.append(element("span", "starcat-muted", "No tags"));
+      return;
+    }
+    for (const tag of tags) {
+      const chip = element("span", "starcat-tag-chip");
+      chip.style.setProperty("--starcat-tag-color", normalizeTagColor(tag.color));
+      chip.append(
+        element("span", "starcat-tag-icon", iconFallback(tag.icon)),
+        element("span", "starcat-tag-name", tag.name || "Untitled")
+      );
+      const remove = element("button", "starcat-tag-remove", "×");
+      remove.type = "button";
+      remove.title = "Remove tag";
+      remove.addEventListener("click", () => onRemove(tag));
+      chip.append(remove);
+      container.append(chip);
+    }
+  }
+
+  function normalizeTagColor(value) {
+    const color = String(value || "").trim();
+    return /^#[0-9a-fA-F]{6}$/.test(color) ? color : "#0A84FF";
+  }
+
+  function iconFallback(icon) {
+    const map = {
+      tag: "•",
+      folder: "▣",
+      bookmark: "★",
+      star: "★",
+      hammer: "⚒",
+      book: "▤",
+      flame: "▲",
+      bolt: "◆",
+      heart: "♥",
+      archive: "▥"
+    };
+    return map[String(icon || "").toLowerCase()] || "•";
+  }
+
+  function renderTagEditor(allTags, selectedIDs, onSave, onCancel) {
+    const editor = element("div", "starcat-tag-editor");
+    if (!allTags.length) {
+      editor.append(element("div", "starcat-code-empty", "No tags in Starcat."));
+      return editor;
+    }
+
+    const list = element("div", "starcat-tag-options");
+    for (const tag of allTags) {
+      const label = element("label", "starcat-tag-option");
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.value = tag.id;
+      input.checked = selectedIDs.has(tag.id);
+      const sample = element("span", "starcat-tag-chip starcat-tag-chip--static");
+      sample.style.setProperty("--starcat-tag-color", normalizeTagColor(tag.color));
+      sample.append(element("span", "starcat-tag-icon", iconFallback(tag.icon)), element("span", "starcat-tag-name", tag.name));
+      label.append(input, sample);
+      list.append(label);
+    }
+
+    const actions = element("div", "starcat-tag-editor-actions");
+    const cancel = element("button", "btn btn-sm", "Cancel");
+    cancel.type = "button";
+    cancel.addEventListener("click", onCancel);
+    const save = element("button", "btn btn-sm btn-primary", "Save");
+    save.type = "button";
+    save.addEventListener("click", onSave);
+    actions.append(cancel, save);
+    editor.append(list, actions);
+    return editor;
+  }
+
+  async function saveTags(client, repo, key, tagIDs, chips, status) {
+    status.textContent = "Saving...";
+    try {
+      const response = await client.saveTags(repo, tagIDs);
+      const tags = response.tags || [];
+      const cached = contextCache.get(key);
+      if (cached?.value) cached.value.tags = tags;
+      renderTagChips(chips, tags, async (tag) => {
+        const next = tags.filter((item) => item.id !== tag.id).map((item) => item.id);
+        await saveTags(client, repo, key, next, chips, status);
+      });
+      status.textContent = "Saved";
+      window.setTimeout(() => {
+        if (status.textContent === "Saved") status.textContent = "";
+      }, 2000);
+    } catch {
+      status.textContent = "Save failed";
+    }
+  }
+
   async function subscribeToRepoEvents(context, repo, client) {
     closeEventSubscription();
     const repoID = context?.repo?.repo_id;
@@ -259,9 +420,13 @@
   }
 
   function handleCompanionEvent(event, repo, repoID) {
-    if (event.type !== "note.updated") return;
     const payload = event.data || {};
     if (payload.repo_id && String(payload.repo_id) !== String(repoID)) return;
+    if (event.type === "tags.updated") {
+      handleTagsEvent(payload, repo);
+      return;
+    }
+    if (event.type !== "note.updated") return;
     const note = payload.note;
     if (!note) return;
 
@@ -289,14 +454,93 @@
     }
   }
 
-  function renderSignalButtons(context, isPro) {
+  function handleTagsEvent(payload, repo) {
+    const tags = payload.tags || [];
+    const key = repo.fullName.toLowerCase();
+    const cached = contextCache.get(key);
+    if (cached?.value) cached.value.tags = tags;
+
+    const chips = document.querySelector("#starcat-tags-row .starcat-tag-chips");
+    const status = document.querySelector("#starcat-tags-row .starcat-tags-status");
+    if (!chips) return;
+    renderTagChips(chips, tags, async (tag) => {
+      const next = tags.filter((item) => item.id !== tag.id).map((item) => item.id);
+      await saveTags(latestRenderState.client, repo, key, next, chips, status || element("span"));
+    });
+    if (status) {
+      status.textContent = "Updated";
+      window.setTimeout(() => {
+        if (status.textContent === "Updated") status.textContent = "";
+      }, 2000);
+    }
+  }
+
+  function renderSignalButtons(context, repo, client, isPro) {
     const pageheadActions = findPageheadActions();
     if (!pageheadActions) return;
+    if (context?.repo?.is_starred !== true) return;
 
-    pageheadActions.append(
-      signalListItem("Health", context?.health, isPro, "health"),
-      signalListItem("OpenSSF", context?.openssf, isPro, "openssf")
+    if (context?.actions?.open_in_starcat === true) {
+      pageheadActions.append(openInStarcatItem(repo, client));
+    }
+    pageheadActions.append(signalListItem("Health", context?.health, isPro, "health"));
+  }
+
+  function isGoogleSearchPage() {
+    return /^www\.google\./.test(location.hostname) && location.pathname === "/search";
+  }
+
+  function findSearchResultRepoTargets() {
+    const seen = new Set();
+    const targets = [];
+    for (const anchor of document.querySelectorAll('a[href*="github.com/"]')) {
+      const repo = parseGitHubRepoFromSearchLink(anchor.href);
+      if (!repo) continue;
+
+      const title = anchor.querySelector("h3") || anchor.closest("h3") || anchor;
+      const result = anchor.closest("[data-sokoban-container], .MjjYud, .g") || title.parentElement;
+      if (!result || seen.has(repo.fullName.toLowerCase())) continue;
+
+      seen.add(repo.fullName.toLowerCase());
+      targets.push({ repo, title: title.closest("a") || title });
+    }
+    return targets.slice(0, 8);
+  }
+
+  function parseGitHubRepoFromSearchLink(href) {
+    const direct = StarcatCompanion.parseGitHubRepo(href);
+    if (direct) return direct;
+
+    try {
+      const url = new URL(href);
+      const redirected = url.searchParams.get("q") || url.searchParams.get("url");
+      return redirected ? StarcatCompanion.parseGitHubRepo(redirected) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function renderSearchResultBadges(title, repo, context, client) {
+    if (!title || title.querySelector?.("[data-starcat-companion='search-result']")) return;
+
+    const group = element("span", "starcat-search-badges");
+    group.dataset.starcatCompanion = "search-result";
+    group.append(
+      searchBadge("Open in Starcat", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        await client.openAction(repo, "open-repo");
+      }),
+      element("span", `starcat-search-health ${scoreToneClass(context?.health?.score, "health")}`, `Health ${formatScore(context?.health?.score)}`)
     );
+    title.append(group);
+  }
+
+  function searchBadge(label, onClick) {
+    const button = element("button", "starcat-search-badge", label);
+    button.type = "button";
+    button.addEventListener("click", onClick);
+    return button;
   }
 
   function findPageheadActions() {
@@ -320,6 +564,27 @@
       element("span", "starcat-pagehead-label", label),
       element("span", "Counter starcat-score-counter", scoreText)
     );
+    li.append(button);
+    return li;
+  }
+
+  function openInStarcatItem(repo, client) {
+    const li = element("li", "starcat-pagehead-li");
+    li.dataset.starcatCompanion = "signal";
+    const button = element("button", "btn btn-sm starcat-pagehead-btn starcat-open-btn");
+    button.type = "button";
+    button.append(
+      element("span", "starcat-pagehead-label", "Open in Starcat")
+    );
+    button.addEventListener("click", async () => {
+      if (!repo || !client) return;
+      button.disabled = true;
+      try {
+        await client.openAction(repo, "open-repo");
+      } finally {
+        button.disabled = false;
+      }
+    });
     li.append(button);
     return li;
   }
@@ -608,7 +873,7 @@
     if (isStarcatInputActive()) return;
     installCodeMenuHook();
     augmentCodeMenu();
-    if (StarcatCompanion.parseGitHubRepo(location.href) && !document.querySelector(ROOT_SELECTOR)) {
+    if ((StarcatCompanion.parseGitHubRepo(location.href) || isGoogleSearchPage()) && !document.querySelector(ROOT_SELECTOR)) {
       scheduleRefresh("mount-missing");
     }
   });

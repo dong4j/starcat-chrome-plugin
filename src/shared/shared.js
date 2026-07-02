@@ -223,6 +223,12 @@
           body: JSON.stringify({ owner: repo.owner, repo: repo.repo, content })
         });
       },
+      saveTags(repo, tagIDs) {
+        return request("/plugin/v1/tags", {
+          method: "PATCH",
+          body: JSON.stringify({ owner: repo.owner, repo: repo.repo, tag_ids: tagIDs })
+        });
+      },
       openAction(repo, action) {
         return request("/plugin/v1/actions/open", {
           method: "POST",

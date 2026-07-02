@@ -85,6 +85,107 @@
   margin-bottom: 0 !important;
 }
 
+.starcat-tags-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.starcat-tags-header .h4 {
+  margin-bottom: 0 !important;
+}
+
+.starcat-tag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.starcat-tag-chip {
+  --starcat-tag-color: #0a84ff;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  gap: 5px;
+  padding: 3px 7px;
+  border: 1px solid color-mix(in srgb, var(--starcat-tag-color), transparent 55%);
+  border-radius: 999px;
+  color: var(--fgColor-default, #1f2328);
+  background: color-mix(in srgb, var(--starcat-tag-color), transparent 88%);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.starcat-tag-icon {
+  color: var(--starcat-tag-color);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.starcat-tag-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.starcat-tag-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: var(--fgColor-muted, #656d76);
+  background: transparent;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.starcat-tag-remove:hover {
+  color: var(--fgColor-danger, #cf222e);
+  background: var(--bgColor-danger-muted, #ffebe9);
+}
+
+.starcat-tag-editor {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid var(--borderColor-muted, #d8dee4);
+  border-radius: 6px;
+  background: var(--bgColor-muted, #f6f8fa);
+}
+
+.starcat-tag-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.starcat-tag-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.starcat-tag-chip--static {
+  pointer-events: none;
+}
+
+.starcat-tag-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .starcat-pagehead-li {
   display: inline-block;
   margin-left: 8px;
@@ -102,6 +203,10 @@
 
 .starcat-pagehead-label {
   font-weight: 600;
+}
+
+.starcat-open-btn {
+  color: var(--fgColor-accent, #0969da);
 }
 
 .starcat-score-counter {
@@ -228,4 +333,52 @@
 .starcat-code-empty {
   color: var(--fgColor-muted, #656d76);
   font-size: 13px;
+}
+
+.starcat-search-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.starcat-search-badge,
+.starcat-search-health {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border: 1px solid var(--borderColor-muted, #d8dee4);
+  border-radius: 999px;
+  color: var(--fgColor-accent, #0969da);
+  background: var(--bgColor-default, #ffffff);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.starcat-search-badge {
+  cursor: pointer;
+}
+
+.starcat-search-badge:hover {
+  border-color: var(--borderColor-accent-muted, #54aeff66);
+  background: var(--bgColor-accent-muted, #ddf4ff);
+}
+
+.starcat-search-health.starcat-score--good {
+  color: var(--fgColor-success, #1a7f37);
+  background: var(--bgColor-success-muted, #dafbe1);
+}
+
+.starcat-search-health.starcat-score--warn {
+  color: var(--fgColor-attention, #9a6700);
+  background: var(--bgColor-attention-muted, #fff8c5);
+}
+
+.starcat-search-health.starcat-score--danger {
+  color: var(--fgColor-danger, #cf222e);
+  background: var(--bgColor-danger-muted, #ffebe9);
 }
