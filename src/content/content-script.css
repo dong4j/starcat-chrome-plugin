@@ -118,12 +118,6 @@
   line-height: 18px;
 }
 
-.starcat-tag-icon {
-  color: var(--starcat-tag-color);
-  font-size: 11px;
-  line-height: 1;
-}
-
 .starcat-tag-name {
   min-width: 0;
   overflow: hidden;

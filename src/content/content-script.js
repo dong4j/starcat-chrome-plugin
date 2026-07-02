@@ -309,10 +309,7 @@
     for (const tag of tags) {
       const chip = element("span", "starcat-tag-chip");
       chip.style.setProperty("--starcat-tag-color", normalizeTagColor(tag.color));
-      chip.append(
-        element("span", "starcat-tag-icon", iconFallback(tag.icon)),
-        element("span", "starcat-tag-name", tag.name || "Untitled")
-      );
+      chip.append(element("span", "starcat-tag-name", tag.name || "Untitled"));
       const remove = element("button", "starcat-tag-remove", "×");
       remove.type = "button";
       remove.title = "Remove tag";
@@ -325,22 +322,6 @@
   function normalizeTagColor(value) {
     const color = String(value || "").trim();
     return /^#[0-9a-fA-F]{6}$/.test(color) ? color : "#0A84FF";
-  }
-
-  function iconFallback(icon) {
-    const map = {
-      tag: "•",
-      folder: "▣",
-      bookmark: "★",
-      star: "★",
-      hammer: "⚒",
-      book: "▤",
-      flame: "▲",
-      bolt: "◆",
-      heart: "♥",
-      archive: "▥"
-    };
-    return map[String(icon || "").toLowerCase()] || "•";
   }
 
   function renderTagEditor(allTags, selectedIDs, onSave, onCancel) {
@@ -359,7 +340,7 @@
       input.checked = selectedIDs.has(tag.id);
       const sample = element("span", "starcat-tag-chip starcat-tag-chip--static");
       sample.style.setProperty("--starcat-tag-color", normalizeTagColor(tag.color));
-      sample.append(element("span", "starcat-tag-icon", iconFallback(tag.icon)), element("span", "starcat-tag-name", tag.name));
+      sample.append(element("span", "starcat-tag-name", tag.name));
       label.append(input, sample);
       list.append(label);
     }
@@ -567,21 +548,24 @@
     const moreTab = findReadmeMoreTab(placement.tabBar);
     const target = moreTab || placement.tabBar.lastElementChild;
     const targetRect = target?.getBoundingClientRect?.();
+    const editButton = findReadmeEditButton(placement.tabHost);
+    const editButtonRect = editButton?.getBoundingClientRect?.();
     const hostRect = placement.tabHost.getBoundingClientRect();
     if (!targetRect?.width || !hostRect.width) return;
 
     placement.tabHost.classList.add("starcat-readme-tabbar-host");
-    // 锚定到目标 tab 的**右边缘**(moreTab 存在时锚 More,否则锚原生 tab 链最后一项,
-    // 比如 Security)。旧版用 `target.left − width − 12` 把 Starcat AI 钉在 Security
-    // 左侧 12px,会因为 Security 紧邻 "MIT license",让 Starcat AI 落到两者之间的夹缝
-    // 里产生视觉重叠。改用右边缘作为锚点,Starcat AI 永远排在原生 tab 链最右侧,
-    // 既不挤占原生 tab 之间的间距,也避免被 GitHub 的 tab-collapse 算法误判。
     // width 由 JS 移除 inline 设定,改走 CSS `width: auto` 让按钮 fit-content
     // 自适应 "Starcat AI" 文本宽度,旧版硬编码 128px 在窄视口或 Box-header 偏窄时
     // 会跟右侧原生按钮 (Watch / Fork / Star) 撞车。
     const gap = 12;
     tab.style.removeProperty("width");
-    const left = targetRect.right - hostRect.left + gap;
+    // 优先锚定 README 右侧的编辑按钮:原生 README tab 数量会随仓库文件变化,
+    // 但编辑按钮始终在右侧操作区,用它做右锚点可以避免 "Starcat AI" 横向漂移。
+    // GitHub 改 DOM 或无权限显示编辑按钮时,退回到原生 tab 链右边缘兜底。
+    const anchoredLeft = editButtonRect?.width
+      ? editButtonRect.left - hostRect.left - tab.offsetWidth - gap
+      : targetRect.right - hostRect.left + gap;
+    const left = Math.max(0, anchoredLeft);
     tab.style.left = `${left}px`;
     tab.style.top = `${Math.max(0, targetRect.top - hostRect.top)}px`;
     tab.style.height = `${targetRect.height}px`;
@@ -591,6 +575,21 @@
     if (overflow > 0) {
       tab.style.left = `${Math.max(0, left - overflow)}px`;
     }
+  }
+
+  function findReadmeEditButton(tabHost) {
+    return [...tabHost.querySelectorAll("a, button")]
+      .filter((node) => node.offsetParent !== null)
+      .find((node) => {
+        const href = node.getAttribute("href") || "";
+        const label = [
+          node.getAttribute("aria-label"),
+          node.getAttribute("title"),
+          textOf(node)
+        ].filter(Boolean).join(" ");
+        const hasPencilIcon = Boolean(node.querySelector(".octicon-pencil, svg[class*='octicon-pencil']"));
+        return /\/edit\//.test(href) || (hasPencilIcon && /edit|编辑/i.test(label));
+      }) || null;
   }
 
   function findReadmeMoreTab(tabBar) {
