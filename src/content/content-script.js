@@ -132,10 +132,11 @@
     if (!sidebar) return;
 
     sidebar.append(renderRecommendationsRow(context?.recommendations || [], isPro));
+    insertNoteRow(sidebar, renderLibraryRow(context, repo, client));
     if (context?.note?.editable) {
       insertNoteRow(sidebar, renderNoteRow(context.note, repo, client));
     }
-    if (context?.repo?.is_starred === true) {
+    if (isStarcatLocalRepo(context)) {
       insertNoteRow(sidebar, renderTagsRow(context, repo, client));
     }
   }
@@ -223,6 +224,102 @@
     content.append(meta);
     card.append(content);
     return card;
+  }
+
+  function renderLibraryRow(context, repo, client) {
+    const row = borderGridRow("starcat-library-row");
+    const state = currentLibraryState(context);
+    const status = element("span", "starcat-muted starcat-library-status");
+    const button = element("button", `starcat-library-button ${state === "in_library" ? "starcat-library-button--active" : ""}`.trim());
+    button.type = "button";
+    renderLibraryButton(button, state);
+    button.addEventListener("click", async () => {
+      if (button.disabled) return;
+
+      const previousState = currentLibraryState(latestRenderState?.context || context);
+      const nextState = previousState === "in_library" ? "outside_library" : "in_library";
+      button.disabled = true;
+      status.textContent = "Saving...";
+      updateCachedLibraryState(repo, nextState);
+      renderLibraryButton(button, nextState);
+
+      try {
+        const response = await saveLibraryStateWithConfirmation(client, repo, nextState);
+        updateCachedLibraryState(repo, response?.library_state || nextState);
+        renderLibraryButton(button, currentLibraryState(latestRenderState?.context || context));
+        status.textContent = "Saved";
+        showStarcatToast(nextState === "in_library" ? "Added to Starcat Library." : "Removed from Starcat Library.");
+        scheduleRefresh("library-state", { force: true });
+        window.setTimeout(() => {
+          if (status.textContent === "Saved") status.textContent = "";
+        }, 2000);
+      } catch (error) {
+        updateCachedLibraryState(repo, previousState);
+        renderLibraryButton(button, previousState);
+        status.textContent = "Save failed";
+        showStarcatToast(libraryStateErrorMessage(error), true);
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    const header = element("div", "starcat-library-header");
+    header.append(sectionTitle("Library"), button);
+    row.querySelector(".BorderGrid-cell").append(header, status);
+    return row;
+  }
+
+  function renderLibraryButton(button, state) {
+    const isInLibrary = state === "in_library";
+    button.classList.toggle("starcat-library-button--active", isInLibrary);
+    button.setAttribute("aria-pressed", String(isInLibrary));
+    button.title = isInLibrary ? "Remove from Starcat Library" : "Add to Starcat Library";
+    button.replaceChildren(
+      element("span", "starcat-library-heart", isInLibrary ? "\u2665" : "\u2661"),
+      element("span", "starcat-library-label", isInLibrary ? "In Library" : "Add")
+    );
+  }
+
+  async function saveLibraryStateWithConfirmation(client, repo, state) {
+    try {
+      return await client.saveLibraryState(repo, state);
+    } catch (error) {
+      if (state !== "outside_library" || error?.body?.error !== "using_removal_requires_confirmation") {
+        throw error;
+      }
+      const confirmed = window.confirm("This repo is marked as Using in Starcat. Removing it from Library will change status to Read. Continue?");
+      if (!confirmed) throw error;
+      return client.saveLibraryState(repo, state, { downgradeUsingStatus: true });
+    }
+  }
+
+  function updateCachedLibraryState(repo, state) {
+    const key = repo.fullName.toLowerCase();
+    const cached = contextCache.get(key);
+    if (cached?.value?.repo) {
+      cached.value.repo.library_state = state;
+      cached.value.repo.is_in_library = state === "in_library";
+    }
+    if (latestRenderState?.context?.repo && latestRenderState.repo?.fullName.toLowerCase() === key) {
+      latestRenderState.context.repo.library_state = state;
+      latestRenderState.context.repo.is_in_library = state === "in_library";
+    }
+  }
+
+  function currentLibraryState(context) {
+    return context?.repo?.library_state === "in_library" || context?.repo?.is_in_library === true
+      ? "in_library"
+      : "outside_library";
+  }
+
+  function isStarcatLocalRepo(context) {
+    return context?.repo?.is_starred === true || currentLibraryState(context) === "in_library";
+  }
+
+  function libraryStateErrorMessage(error) {
+    if (error?.body?.error === "using_removal_requires_confirmation") return "Removal cancelled. Repo stayed in Library.";
+    if (error?.status === 404) return "Repo is not available in Starcat yet.";
+    return "Could not update Starcat Library. Check that Starcat is running.";
   }
 
   function renderNoteRow(note, repo, client) {
@@ -1331,6 +1428,16 @@
 
     svg.append(head, star);
     return svg;
+  }
+
+  function showStarcatToast(message, isError = false) {
+    const existing = document.querySelector("#starcat-companion-toast");
+    existing?.remove();
+
+    const toast = element("div", `starcat-toast ${isError ? "starcat-toast--error" : ""}`.trim(), message);
+    toast.id = "starcat-companion-toast";
+    document.body.append(toast);
+    window.setTimeout(() => toast.remove(), 3500);
   }
 
   function removeStarcatNodes() {

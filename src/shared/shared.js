@@ -229,6 +229,17 @@
           body: JSON.stringify({ owner: repo.owner, repo: repo.repo, tag_ids: tagIDs })
         });
       },
+      saveLibraryState(repo, state, options = {}) {
+        return request("/plugin/v1/library-state", {
+          method: "PATCH",
+          body: JSON.stringify({
+            owner: repo.owner,
+            repo: repo.repo,
+            state,
+            downgrade_using_status: options.downgradeUsingStatus === true
+          })
+        });
+      },
       openAction(repo, action) {
         return request("/plugin/v1/actions/open", {
           method: "POST",
