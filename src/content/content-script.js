@@ -78,10 +78,11 @@
 
     const client = StarcatCompanion.createClient(config);
     const targets = findSearchResultRepoTargets();
-    await Promise.all(targets.map(async ({ repo, title }) => {
+    await Promise.all(targets.map(async (target) => {
+      const { repo } = target;
       const context = await loadContext(client, repo, options.force === true).catch(() => null);
       if (context?.repo?.is_starred !== true) return;
-      renderSearchResultBadges(title, repo, context, client);
+      renderSearchResultBadges(target, repo, context, client);
     }));
   }
 
@@ -493,16 +494,20 @@
   function findSearchResultRepoTargets() {
     const seen = new Set();
     const targets = [];
-    for (const anchor of document.querySelectorAll('a[href*="github.com/"]')) {
+    const anchors = [...document.querySelectorAll('a[href*="github.com/"]')]
+      .sort((left, right) => Number(Boolean(right.querySelector("h3"))) - Number(Boolean(left.querySelector("h3"))));
+    for (const anchor of anchors) {
       const repo = parseGitHubRepoFromSearchLink(anchor.href);
       if (!repo) continue;
 
       const title = anchor.querySelector("h3") || anchor.closest("h3") || anchor;
       const result = anchor.closest("[data-sokoban-container], .MjjYud, .g") || title.parentElement;
       if (!result || seen.has(repo.fullName.toLowerCase())) continue;
+      const translateControl = findTranslateControl(result);
+      if (!translateControl) continue;
 
       seen.add(repo.fullName.toLowerCase());
-      targets.push({ repo, title: title.closest("a") || title });
+      targets.push({ repo, result, translateControl });
     }
     return targets.slice(0, 8);
   }
@@ -520,12 +525,16 @@
     }
   }
 
-  function renderSearchResultBadges(title, repo, context, client) {
-    if (!title || title.querySelector?.("[data-starcat-companion='search-result']")) return;
+  function renderSearchResultBadges(target, repo, context, client) {
+    const result = target?.result;
+    const translateControl = target?.translateControl;
+    if (!result || result.querySelector?.("[data-starcat-companion='search-result']")) return;
+    if (!translateControl?.parentElement || !result.contains(translateControl)) return;
 
-    const group = element("span", "starcat-search-badges");
-    group.dataset.starcatCompanion = "search-result";
-    group.append(
+    const actions = element("span", "starcat-search-actions");
+    actions.dataset.starcatCompanion = "search-result";
+    actions.append(
+      element("span", "starcat-search-separator", "·"),
       searchBadge("Open in Starcat", async (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -533,7 +542,16 @@
       }),
       element("span", `starcat-search-health ${scoreToneClass(context?.health?.score, "health")}`, `Health ${formatScore(context?.health?.score)}`)
     );
-    title.append(group);
+    translateControl.parentElement.insertBefore(actions, translateControl.nextSibling);
+  }
+
+  function findTranslateControl(result) {
+    const labels = ["翻译此页", "Translate this page", "翻譯這個網頁", "翻譯此頁"];
+    const candidates = [...result.querySelectorAll("a, button, span, div")]
+      .filter((node) => labels.some((label) => textOf(node) === label || textOf(node).includes(label)));
+    const node = candidates
+      .sort((left, right) => textOf(left).length - textOf(right).length)[0];
+    return node?.closest?.("a, button, [role='button']") || node || null;
   }
 
   function searchBadge(label, onClick) {

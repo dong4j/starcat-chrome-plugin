@@ -335,31 +335,47 @@
   font-size: 13px;
 }
 
-.starcat-search-badges {
+.starcat-search-actions {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   margin-left: 8px;
-  vertical-align: middle;
+  direction: ltr;
+  unicode-bidi: isolate;
+  writing-mode: horizontal-tb;
+  transform: none;
+}
+
+.starcat-search-separator {
+  color: var(--fgColor-muted, #9aa0a6);
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .starcat-search-badge,
 .starcat-search-health {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   height: 20px;
   padding: 0 7px;
   border: 1px solid var(--borderColor-muted, #d8dee4);
   border-radius: 999px;
   color: var(--fgColor-accent, #0969da);
   background: var(--bgColor-default, #ffffff);
+  font-family: Arial, sans-serif;
   font-size: 12px;
   font-weight: 600;
   line-height: 20px;
+  direction: ltr;
+  unicode-bidi: isolate;
+  writing-mode: horizontal-tb;
+  transform: none;
   white-space: nowrap;
 }
 
 .starcat-search-badge {
+  appearance: none;
   cursor: pointer;
 }
 
