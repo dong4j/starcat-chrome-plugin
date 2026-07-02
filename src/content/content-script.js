@@ -166,7 +166,7 @@
   function renderRecommendationsRow(items, isPro) {
     const row = borderGridRow("starcat-recommendations-row");
     row.querySelector(".BorderGrid-cell").append(
-      sectionTitle("Recommends", starcatIconURL()),
+      sectionTitle("Recommends"),
       isPro && items.length ? recommendationsList(items) : proLockedNotice("Upgrade to Starcat Pro to view similar repositories.")
     );
     return row;
@@ -260,7 +260,7 @@
       }
     });
 
-    header.append(sectionTitle("Notes", starcatIconURL()), button);
+    header.append(sectionTitle("Notes"), button);
     row.querySelector(".BorderGrid-cell").append(header, textarea, status);
     return row;
   }
@@ -275,7 +275,7 @@
     const status = element("span", "starcat-muted starcat-tags-status");
     const editButton = element("button", "btn btn-sm", "Edit");
     editButton.type = "button";
-    header.append(sectionTitle("Tags", starcatIconURL()), editButton);
+    header.append(sectionTitle("Tags"), editButton);
 
     const chips = element("div", "starcat-tag-chips");
     renderTagChips(chips, assigned, async (tag) => {
@@ -1227,22 +1227,16 @@
     return row;
   }
 
-  function sectionTitle(title, iconSrc) {
-    // iconSrc 可选,sidebar 的三个 section 标题(Recommends/Notes/Tags)都传
-    // 同一个 starcatIconURL(),复用 starcat-readme-tab / code menu 的图标资源,
-    // 视觉上跟其它 Starcat 入口一致。不用 element(text) 是因为 textContent 会
-    // 清掉已 append 的子节点,改用显式 append(icon)+append(text) 两步
+  function sectionTitle(title) {
+    // sidebar 三个 section 标题(Recommends/Notes/Tags)统一加 starcat icon,
+    // 跟 makeReadmeAITab / code menu 的 starcatMarkIcon 复用同一个内联 SVG
+    // 绘制风格(currentColor stroke,跟 GitHub 主题色联动)。不用 element(text)
+    // 是因为 textContent 会清掉已 append 的子节点,改用显式 append(icon)+append(text)
     const node = element("h2", "h4 mb-3");
-    if (iconSrc) {
-      const icon = element("img", "starcat-section-title__icon");
-      icon.src = iconSrc;
-      icon.alt = "";
-      icon.decoding = "async";
-      icon.setAttribute("aria-hidden", "true");
-      icon.addEventListener("error", () => { icon.hidden = true; }, { once: true });
-      node.append(icon);
-    }
-    node.append(document.createTextNode(title));
+    node.append(
+      starcatMarkIcon("starcat-section-title__icon"),
+      document.createTextNode(title)
+    );
     return node;
   }
 
