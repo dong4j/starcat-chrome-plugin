@@ -117,6 +117,7 @@
       latestRenderState = { context, repo, client, isPro };
       renderSidebarRows(context, repo, client, isPro);
       renderSignalButtons(context, repo, client, isPro);
+      installReadmeAISection(context, repo, client);
       installCodeMenuHook();
       subscribeToRepoEvents(context, repo, client);
     } finally {
@@ -427,6 +428,10 @@
       handleTagsEvent(payload, repo);
       return;
     }
+    if (event.type === "summary.updated") {
+      handleSummaryEvent(payload, repo);
+      return;
+    }
     if (event.type !== "note.updated") return;
     const note = payload.note;
     if (!note) return;
@@ -474,6 +479,135 @@
         if (status.textContent === "Updated") status.textContent = "";
       }, 2000);
     }
+  }
+
+  function handleSummaryEvent(payload, repo) {
+    const key = repo.fullName.toLowerCase();
+    const cached = contextCache.get(key);
+    if (cached?.value) cached.value.ai_summary = payload.ai_summary || null;
+    if (latestRenderState?.context) latestRenderState.context.ai_summary = payload.ai_summary || null;
+
+    const panel = document.querySelector("#starcat-ai-readme-panel");
+    if (!panel || !latestRenderState) return;
+    renderReadmeAIPanel(panel, latestRenderState.context, repo, latestRenderState.client);
+  }
+
+  function installReadmeAISection(context, repo, client) {
+    if (context?.repo?.is_starred !== true) return;
+
+    const placement = findReadmeTabPlacement();
+    if (!placement || document.querySelector("#starcat-ai-readme-tab")) return;
+
+    const tab = element("button", "starcat-readme-tab", "Starcat AI");
+    tab.id = "starcat-ai-readme-tab";
+    tab.type = "button";
+    tab.dataset.starcatCompanion = "readme-ai";
+    tab.setAttribute("role", "tab");
+
+    const panel = element("div", "starcat-ai-readme-panel");
+    panel.id = "starcat-ai-readme-panel";
+    panel.dataset.starcatCompanion = "readme-ai";
+    panel.hidden = true;
+    renderReadmeAIPanel(panel, context, repo, client);
+
+    tab.addEventListener("click", () => {
+      activateReadmeAITab(tab, panel, placement);
+    });
+    placement.readmeTab.addEventListener("click", () => {
+      deactivateReadmeAITab(tab, panel, placement);
+    });
+
+    placement.tabBar.insertBefore(tab, placement.readmeTab.nextSibling);
+    placement.body.parentElement.insertBefore(panel, placement.body.nextSibling);
+  }
+
+  function findReadmeTabPlacement() {
+    const readmeTab = [...document.querySelectorAll("a, button, [role='tab']")]
+      .find((node) => textOf(node) === "README" && node.offsetParent !== null);
+    if (!readmeTab) return null;
+
+    const tabBar = readmeTab.closest("[role='tablist'], nav, .UnderlineNav, .Box-header, .d-flex");
+    const box = readmeTab.closest(".Box") || document.querySelector("#readme")?.closest(".Box");
+    const markdown = box?.querySelector(".markdown-body") || document.querySelector("#readme .markdown-body, article.markdown-body, .markdown-body");
+    const body = markdown?.parentElement;
+    if (!tabBar || !body || !body.parentElement) return null;
+    return { readmeTab, tabBar, body };
+  }
+
+  function activateReadmeAITab(tab, panel, placement) {
+    tab.classList.add("starcat-readme-tab--active");
+    tab.setAttribute("aria-selected", "true");
+    placement.readmeTab.classList.add("starcat-readme-tab__github-inactive");
+    placement.body.dataset.starcatReadmeBodyHidden = "true";
+    placement.body.hidden = true;
+    panel.hidden = false;
+  }
+
+  function deactivateReadmeAITab(tab, panel, placement) {
+    tab.classList.remove("starcat-readme-tab--active");
+    tab.setAttribute("aria-selected", "false");
+    placement.readmeTab.classList.remove("starcat-readme-tab__github-inactive");
+    panel.hidden = true;
+    delete placement.body.dataset.starcatReadmeBodyHidden;
+    placement.body.hidden = false;
+  }
+
+  function renderReadmeAIPanel(panel, context, repo, client) {
+    panel.replaceChildren();
+    const summary = context?.ai_summary;
+    const actions = context?.actions || {};
+    const header = element("div", "starcat-ai-readme-header");
+    header.append(
+      element("h2", "starcat-ai-readme-title", "Starcat AI"),
+      renderSummaryMeta(summary)
+    );
+    panel.append(header);
+
+    if (summary?.markdown) {
+      panel.append(renderSummaryMarkdown(summary.markdown));
+      return;
+    }
+
+    const empty = element("div", "starcat-ai-empty");
+    empty.append(
+      element("div", "starcat-ai-empty__title", "暂未生成"),
+      element("p", "starcat-ai-empty__body", "可以在 Starcat 中打开该仓库并生成 AI 摘要。")
+    );
+    const button = element("button", "btn btn-sm btn-primary", "生成摘要");
+    button.type = "button";
+    button.disabled = actions.generate_summary !== true;
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      button.textContent = "已发送";
+      try {
+        await client.openAction(repo, "generate-summary");
+        empty.append(element("div", "starcat-ai-empty__status", "Starcat 已开始生成，完成后会自动同步到此页面。"));
+      } catch {
+        button.disabled = actions.generate_summary !== true;
+        button.textContent = "生成摘要";
+        empty.append(element("div", "starcat-ai-empty__status starcat-ai-empty__status--error", "发送失败，请确认 Starcat 正在运行。"));
+      }
+    });
+    empty.append(button);
+    panel.append(empty);
+  }
+
+  function renderSummaryMeta(summary) {
+    const meta = element("div", "starcat-ai-readme-meta");
+    if (!summary?.generated_at && !summary?.model) return meta;
+    const parts = [];
+    if (summary.model) parts.push(summary.model);
+    if (summary.generated_at) parts.push(summary.generated_at);
+    meta.textContent = parts.join(" · ");
+    return meta;
+  }
+
+  function renderSummaryMarkdown(markdown) {
+    const body = element("div", "starcat-ai-summary markdown-body");
+    const pre = element("pre", "starcat-ai-summary__text");
+    pre.textContent = markdown;
+    body.append(pre);
+    return body;
   }
 
   function renderSignalButtons(context, repo, client, isPro) {
@@ -861,6 +995,10 @@
 
   function removeStarcatNodes() {
     closeEventSubscription();
+    document.querySelectorAll("[data-starcat-readme-body-hidden='true']").forEach((node) => {
+      node.hidden = false;
+      delete node.dataset.starcatReadmeBodyHidden;
+    });
     document.querySelectorAll(ROOT_SELECTOR).forEach((node) => node.remove());
   }
 

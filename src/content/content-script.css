@@ -186,6 +186,102 @@
   gap: 8px;
 }
 
+.starcat-readme-tab {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--fgColor-muted, #656d76);
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.starcat-readme-tab:hover,
+.starcat-readme-tab--active {
+  color: var(--fgColor-default, #1f2328);
+}
+
+.starcat-readme-tab--active {
+  border-bottom-color: var(--borderColor-accent-emphasis, #fd8c73);
+}
+
+.starcat-readme-tab__github-inactive {
+  border-bottom-color: transparent !important;
+}
+
+.starcat-ai-readme-panel {
+  padding: 32px 40px;
+  color: var(--fgColor-default, #1f2328);
+  background: var(--bgColor-default, #ffffff);
+}
+
+.starcat-ai-readme-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--borderColor-muted, #d8dee4);
+}
+
+.starcat-ai-readme-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.starcat-ai-readme-meta {
+  color: var(--fgColor-muted, #656d76);
+  font-size: 12px;
+  text-align: right;
+}
+
+.starcat-ai-summary__text {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.starcat-ai-empty {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  padding: 20px;
+  border: 1px solid var(--borderColor-muted, #d8dee4);
+  border-radius: 6px;
+  background: var(--bgColor-muted, #f6f8fa);
+}
+
+.starcat-ai-empty__title {
+  color: var(--fgColor-default, #1f2328);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.starcat-ai-empty__body {
+  margin: 0;
+  color: var(--fgColor-muted, #656d76);
+}
+
+.starcat-ai-empty__status {
+  color: var(--fgColor-muted, #656d76);
+  font-size: 12px;
+}
+
+.starcat-ai-empty__status--error {
+  color: var(--fgColor-danger, #cf222e);
+}
+
 .starcat-pagehead-li {
   display: inline-block;
   margin-left: 8px;
