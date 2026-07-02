@@ -191,7 +191,7 @@
   align-items: center;
   justify-content: center;
   min-height: 0;
-  padding: 0 12px;
+  padding: 0 12px 12px;
   border: 0;
   border-bottom: 2px solid transparent;
   color: var(--fgColor-muted, #656d76);

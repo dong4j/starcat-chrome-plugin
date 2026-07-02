@@ -545,39 +545,47 @@
   }
 
   function positionReadmeAITab(tab, placement) {
-    const moreTab = findReadmeMoreTab(placement.tabBar);
-    const target = moreTab || placement.tabBar.lastElementChild;
-    const targetRect = target?.getBoundingClientRect?.();
     const editButton = findReadmeEditButton(placement.tabHost);
     const editButtonRect = editButton?.getBoundingClientRect?.();
     const hostRect = placement.tabHost.getBoundingClientRect();
-    if (!targetRect?.width || !hostRect.width) return;
+    if (!hostRect.width) return;
+
+    // 找"tab 链里最右边"的元素作为主锚 = 真实 Security tab(也可能
+    // 是 Code of conduct / License 等,但一定是 tab 链尾部那个)。
+    // 之前用 querySelectorAll 然后取最后一项,被 flex 布局里 readme tab
+    // 自己或某个非 Security 元素劫持,top 比 Security 更高导致 Starcat AI
+    // 跟 Security 不水平。换成按 getBoundingClientRect().right 取 max,
+    // 几何上保证拿到 tab 链最右那个,跟文字标签无关。
+    const tabBar = placement.tabBar;
+    const tabElements = [...tabBar.querySelectorAll("a, button, [role='tab']")]
+      .filter((node) => node.offsetParent !== null);
+    const lastTab = tabElements.reduce((best, node) => {
+      if (!best) return node;
+      return node.getBoundingClientRect().right > best.getBoundingClientRect().right ? node : best;
+    }, null) || placement.readmeTab;
+    const lastTabRect = lastTab.getBoundingClientRect();
 
     placement.tabHost.classList.add("starcat-readme-tabbar-host");
     // width 由 JS 移除 inline 设定,改走 CSS `width: auto` 让按钮 fit-content
-    // 自适应 "Starcat AI" 文本宽度,旧版硬编码 128px 在窄视口或 Box-header 偏窄时
-    // 会跟右侧原生按钮 (Watch / Fork / Star) 撞车。
+    // 自适应 "Starcat AI" 文本宽度。
     tab.style.removeProperty("width");
-    // 最简方案:用固定 right 偏移让 Starcat AI 跟笔图标留出明确间距。
-    // 旧版用 editButton.left 当右锚点,会把 tab 钉到 Box-header 右半区(跳过 tab 链);
-    // 用 findReadmeTabPlacement 选 tabHost 也会让 tab 跟更多按钮挤在一起。
-    // 干脆:tab 锁定在 host 右边缘固定 80px 处,跟编辑按钮天然有视觉空隙。
-    // 兜底:窄视口 / Box-header 较窄时,左移直到贴右边缘,避免被 GitHub 右上角按钮盖住。
-    let right = 80;
+    // top / height 跟最后一个原生 tab 完全一致,保证水平对齐。
+    tab.style.top = `${Math.max(0, lastTabRect.top - hostRect.top + 7)}px`;
+    tab.style.height = `${lastTabRect.height}px`;
+    // 主锚:最后一个原生 tab 右边 + 16px 间距(Starcat AI 跟在 tab 链尾部)。
+    // 上限:编辑按钮左边 - 16px 间距(避免骑上笔图标)。
+    // 上一版用"编辑按钮左边 - 96"做目标把 tab 推到 Security 上,
+    // 根因是 findReadmeEditButton 命中了中间某个元素(不是真的笔图标)。
+    // 这里退回"tab 链尾部 + 编辑按钮上限"双锚,逻辑最稳。
+    const tabWidth = tab.offsetWidth;
+    let left = lastTabRect.right - hostRect.left + 16;
     if (editButtonRect?.width) {
-      const tabRight = hostRect.right - right;
-      // 如果 tab 右边会侵入编辑按钮左边,改用"编辑按钮左边 - 16px 留白"作为 right
-      if (tabRight > editButtonRect.left - 16) {
-        right = Math.max(0, hostRect.right - (editButtonRect.left - 16));
-      }
-    } else {
-      // 找不到编辑按钮时,退回到"最后一个原生 tab 右边 + 16"
-      right = Math.max(0, hostRect.right - (targetRect.right + 16));
+      const maxLeft = editButtonRect.left - hostRect.left - tabWidth - 16;
+      if (left > maxLeft) left = Math.max(0, maxLeft);
     }
-    tab.style.left = "auto";
-    tab.style.right = `${right}px`;
-    tab.style.top = `${Math.max(0, targetRect.top - hostRect.top)}px`;
-    tab.style.height = `${targetRect.height}px`;
+    left = Math.max(0, left);
+    tab.style.left = `${left}px`;
+    tab.style.right = "auto";
   }
 
   function findReadmeEditButton(tabHost) {
