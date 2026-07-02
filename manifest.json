@@ -12,13 +12,13 @@
   "permissions": ["storage"],
   "host_permissions": [
     "https://github.com/*",
-    "https://www.google.com/*",
+    "https://*/*",
     "http://127.0.0.1:*/*",
     "http://localhost:*/*"
   ],
   "content_scripts": [
     {
-      "matches": ["https://github.com/*", "https://www.google.com/search*"],
+      "matches": ["https://github.com/*", "https://*/search*"],
       "js": ["src/shared/shared.js", "src/content/content-script.js"],
       "css": ["src/content/content-script.css"],
       "run_at": "document_idle"
@@ -26,8 +26,8 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["src/assets/starcat-menu/*.png"],
-      "matches": ["https://github.com/*", "https://www.google.com/*"]
+      "resources": ["src/assets/icons/*.png", "src/assets/starcat-menu/*.png"],
+      "matches": ["https://github.com/*", "https://*/*"]
     }
   ],
   "action": {
