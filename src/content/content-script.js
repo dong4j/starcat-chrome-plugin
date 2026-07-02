@@ -557,24 +557,27 @@
     // width 由 JS 移除 inline 设定,改走 CSS `width: auto` 让按钮 fit-content
     // 自适应 "Starcat AI" 文本宽度,旧版硬编码 128px 在窄视口或 Box-header 偏窄时
     // 会跟右侧原生按钮 (Watch / Fork / Star) 撞车。
-    const gap = 12;
     tab.style.removeProperty("width");
-    // 优先锚定 README 右侧的编辑按钮:原生 README tab 数量会随仓库文件变化,
-    // 但编辑按钮始终在右侧操作区,用它做右锚点可以避免 "Starcat AI" 横向漂移。
-    // GitHub 改 DOM 或无权限显示编辑按钮时,退回到原生 tab 链右边缘兜底。
-    const anchoredLeft = editButtonRect?.width
-      ? editButtonRect.left - hostRect.left - tab.offsetWidth - gap
-      : targetRect.right - hostRect.left + gap;
-    const left = Math.max(0, anchoredLeft);
-    tab.style.left = `${left}px`;
+    // 最简方案:用固定 right 偏移让 Starcat AI 跟笔图标留出明确间距。
+    // 旧版用 editButton.left 当右锚点,会把 tab 钉到 Box-header 右半区(跳过 tab 链);
+    // 用 findReadmeTabPlacement 选 tabHost 也会让 tab 跟更多按钮挤在一起。
+    // 干脆:tab 锁定在 host 右边缘固定 80px 处,跟编辑按钮天然有视觉空隙。
+    // 兜底:窄视口 / Box-header 较窄时,左移直到贴右边缘,避免被 GitHub 右上角按钮盖住。
+    let right = 80;
+    if (editButtonRect?.width) {
+      const tabRight = hostRect.right - right;
+      // 如果 tab 右边会侵入编辑按钮左边,改用"编辑按钮左边 - 16px 留白"作为 right
+      if (tabRight > editButtonRect.left - 16) {
+        right = Math.max(0, hostRect.right - (editButtonRect.left - 16));
+      }
+    } else {
+      // 找不到编辑按钮时,退回到"最后一个原生 tab 右边 + 16"
+      right = Math.max(0, hostRect.right - (targetRect.right + 16));
+    }
+    tab.style.left = "auto";
+    tab.style.right = `${right}px`;
     tab.style.top = `${Math.max(0, targetRect.top - hostRect.top)}px`;
     tab.style.height = `${targetRect.height}px`;
-    // 兜底:视口窄到连"右边缘 + gap"都会溢出 host 时,把按钮左移直到贴右边缘,
-    // 避免被 GitHub 右上角原生按钮盖住或被裁掉。Math.max 兜底防止 left 变负。
-    const overflow = (left + tab.offsetWidth) - hostRect.width;
-    if (overflow > 0) {
-      tab.style.left = `${Math.max(0, left - overflow)}px`;
-    }
   }
 
   function findReadmeEditButton(tabHost) {

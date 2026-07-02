@@ -1,0 +1,87 @@
+# Starcat Chrome Plugin — 自动发布 workflow
+#
+# 触发:推送形如 v0.1.0 / v1.2.3 的 git tag 时自动执行。
+#
+# 流程:
+#   1) checkout 源代码
+#   2) 解析 manifest.json 的 version 字段
+#   3) 校验:tag 名必须严格等于 "v${manifest.version}",不一致立即 fail
+#      (防"tag 是 v0.2.0 但包里还写着 0.1.0"的低级错误)
+#   4) 打包:把 manifest.json + src/ 复制到临时目录,在该目录内 zip,
+#      保证 manifest.json 位于 zip 根目录(Chrome Web Store / 加载要求)
+#   5) 用 softprops/action-gh-release 把 zip 上传到 GitHub Release,
+#      title 为 "Starcat Chrome Plugin vX.Y.Z",正文由 GitHub 自动生成
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# 最小权限原则:只需要创建 release,授予 contents 写权限即可
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Read manifest version
+        id: version
+        # ubuntu-latest 默认带 jq,比 node/python 更轻
+        run: |
+          VERSION=$(jq -r '.version' manifest.json)
+          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+            echo "::error::manifest.json missing or invalid 'version' field"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Verify tag matches manifest version
+        # 关键约束:tag 和 manifest.version 必须 1:1 对应,避免 release 包和外部 tag 版本号错位
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          EXPECTED="v${{ steps.version.outputs.version }}"
+          if [ "$TAG" != "$EXPECTED" ]; then
+            echo "::error::Tag '$TAG' does not match manifest version '${{ steps.version.outputs.version }}' (expected '$EXPECTED')"
+            echo "::error::Please update manifest.json's 'version' field, or push tag '$EXPECTED' instead."
+            exit 1
+          fi
+          echo "✓ Tag '$TAG' matches manifest version '${{ steps.version.outputs.version }}'"
+
+      - name: Package extension into zip
+        # 打包要点:
+        #   1) mkdir dist 作为干净 staging 目录
+        #   2) 显式 cp manifest.json + src/,不会误带 .git / .idea / .claude 等脏文件
+        #   3) cd dist && zip -r ../xxx.zip . 让 manifest.json 落在 zip 第一层
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          ZIP_NAME="starcat-chrome-plugin-${VERSION}.zip"
+
+          rm -rf dist
+          mkdir -p dist
+          cp manifest.json dist/
+          cp -r src dist/src
+
+          (cd dist && zip -r "../${ZIP_NAME}" . > /dev/null)
+
+          echo "::group::zip contents (first 30 entries)"
+          unzip -l "${ZIP_NAME}" | head -n 30
+          echo "::endgroup::"
+
+          echo "✓ Built ${ZIP_NAME}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Starcat Chrome Plugin v${{ steps.version.outputs.version }}"
+          # 让 GitHub 自动聚合本 release 区间的 PR + commit 列表作为 release notes
+          generate_release_notes: true
+          files: starcat-chrome-plugin-${{ steps.version.outputs.version }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
