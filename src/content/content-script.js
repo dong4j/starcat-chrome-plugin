@@ -166,7 +166,7 @@
   function renderRecommendationsRow(items, isPro) {
     const row = borderGridRow("starcat-recommendations-row");
     row.querySelector(".BorderGrid-cell").append(
-      sectionTitle("Similar repositories"),
+      sectionTitle("Recommends", starcatIconURL()),
       isPro && items.length ? recommendationsList(items) : proLockedNotice("Upgrade to Starcat Pro to view similar repositories.")
     );
     return row;
@@ -260,7 +260,7 @@
       }
     });
 
-    header.append(sectionTitle("Starcat notes"), button);
+    header.append(sectionTitle("Notes", starcatIconURL()), button);
     row.querySelector(".BorderGrid-cell").append(header, textarea, status);
     return row;
   }
@@ -275,7 +275,7 @@
     const status = element("span", "starcat-muted starcat-tags-status");
     const editButton = element("button", "btn btn-sm", "Edit");
     editButton.type = "button";
-    header.append(sectionTitle("Starcat tags"), editButton);
+    header.append(sectionTitle("Tags", starcatIconURL()), editButton);
 
     const chips = element("div", "starcat-tag-chips");
     renderTagChips(chips, assigned, async (tag) => {
@@ -498,11 +498,11 @@
     const placement = findReadmeTabPlacement();
     if (!placement || document.querySelector("#starcat-ai-readme-tab")) return;
 
-    const tab = element("button", "starcat-readme-tab", "Starcat AI");
+    const tab = makeReadmeAITab(placement.readmeTab);
     tab.id = "starcat-ai-readme-tab";
-    tab.type = "button";
     tab.dataset.starcatCompanion = "readme-ai";
     tab.setAttribute("role", "tab");
+    tab.setAttribute("aria-selected", "false");
 
     const panel = element("div", "starcat-ai-readme-panel");
     panel.id = "starcat-ai-readme-panel";
@@ -517,8 +517,22 @@
       deactivateReadmeAITab(tab, panel, placement);
     });
 
-    placement.tabBar.insertBefore(tab, placement.readmeTab.nextSibling);
+    // Keep Starcat AI outside GitHub's managed tab list. GitHub recalculates
+    // README tabs into the More menu based on direct children, so inserting our
+    // own node there can accidentally collapse native tabs.
+    placement.tabHost.append(tab);
+    positionReadmeAITab(tab, placement);
     placement.body.parentElement.insertBefore(panel, placement.body.nextSibling);
+    window.addEventListener("resize", () => positionReadmeAITab(tab, placement), { passive: true });
+  }
+
+  function makeReadmeAITab(_readmeTab) {
+    const tab = element("button", "starcat-readme-tab");
+    tab.type = "button";
+    // 用 inline SVG 而不是外链图片:currentColor 可以继承 GitHub 主题变量,
+    // 避免 dark/dimmed/high contrast 下图标固定成黑色或白色。
+    tab.append(starcatMarkIcon("starcat-readme-tab__icon"), document.createTextNode("Starcat AI"));
+    return tab;
   }
 
   function findReadmeTabPlacement() {
@@ -527,17 +541,73 @@
     if (!readmeTab) return null;
 
     const tabBar = readmeTab.closest("[role='tablist'], nav, .UnderlineNav, .Box-header, .d-flex");
+    const tabAnchor = findReadmeTabItem(readmeTab, tabBar);
+    const tabParent = tabAnchor?.parentElement;
+    const tabHost = tabBar?.closest(".Box-header") || tabBar?.parentElement;
     const box = readmeTab.closest(".Box") || document.querySelector("#readme")?.closest(".Box");
     const markdown = box?.querySelector(".markdown-body") || document.querySelector("#readme .markdown-body, article.markdown-body, .markdown-body");
     const body = markdown?.parentElement;
-    if (!tabBar || !body || !body.parentElement) return null;
-    return { readmeTab, tabBar, body };
+    if (!tabBar || !tabHost || !tabParent || !body || !body.parentElement) return null;
+    return { readmeTab, tabBar, tabHost, tabParent, tabAnchor, body };
+  }
+
+  function findReadmeTabItem(readmeTab, tabBar) {
+    let node = readmeTab;
+    while (node?.parentElement && node.parentElement !== tabBar) {
+      const siblings = [...node.parentElement.children].map(textOf).filter(Boolean);
+      const hasNativeReadmeSiblings = siblings.some((text) => /Code of conduct|Contributing|MIT license|Security/.test(text));
+      if (textOf(node) === "README" && hasNativeReadmeSiblings) return node;
+      if (textOf(node.parentElement) !== "README") break;
+      node = node.parentElement;
+    }
+    return textOf(node) === "README" ? node : readmeTab;
+  }
+
+  function positionReadmeAITab(tab, placement) {
+    const moreTab = findReadmeMoreTab(placement.tabBar);
+    const target = moreTab || placement.tabBar.lastElementChild;
+    const targetRect = target?.getBoundingClientRect?.();
+    const hostRect = placement.tabHost.getBoundingClientRect();
+    if (!targetRect?.width || !hostRect.width) return;
+
+    placement.tabHost.classList.add("starcat-readme-tabbar-host");
+    // 锚定到目标 tab 的**右边缘**(moreTab 存在时锚 More,否则锚原生 tab 链最后一项,
+    // 比如 Security)。旧版用 `target.left − width − 12` 把 Starcat AI 钉在 Security
+    // 左侧 12px,会因为 Security 紧邻 "MIT license",让 Starcat AI 落到两者之间的夹缝
+    // 里产生视觉重叠。改用右边缘作为锚点,Starcat AI 永远排在原生 tab 链最右侧,
+    // 既不挤占原生 tab 之间的间距,也避免被 GitHub 的 tab-collapse 算法误判。
+    // width 由 JS 移除 inline 设定,改走 CSS `width: auto` 让按钮 fit-content
+    // 自适应 "Starcat AI" 文本宽度,旧版硬编码 128px 在窄视口或 Box-header 偏窄时
+    // 会跟右侧原生按钮 (Watch / Fork / Star) 撞车。
+    const gap = 12;
+    tab.style.removeProperty("width");
+    const left = targetRect.right - hostRect.left + gap;
+    tab.style.left = `${left}px`;
+    tab.style.top = `${Math.max(0, targetRect.top - hostRect.top)}px`;
+    tab.style.height = `${targetRect.height}px`;
+    // 兜底:视口窄到连"右边缘 + gap"都会溢出 host 时,把按钮左移直到贴右边缘,
+    // 避免被 GitHub 右上角原生按钮盖住或被裁掉。Math.max 兜底防止 left 变负。
+    const overflow = (left + tab.offsetWidth) - hostRect.width;
+    if (overflow > 0) {
+      tab.style.left = `${Math.max(0, left - overflow)}px`;
+    }
+  }
+
+  function findReadmeMoreTab(tabBar) {
+    return [...tabBar.querySelectorAll("a, button, [role='tab'], div")]
+      .filter((node) => node.offsetParent !== null && textOf(node) === "More")
+      .sort((left, right) => {
+        const leftWidth = left.getBoundingClientRect?.().width || 0;
+        const rightWidth = right.getBoundingClientRect?.().width || 0;
+        return leftWidth - rightWidth;
+      })[0] || null;
   }
 
   function activateReadmeAITab(tab, panel, placement) {
     tab.classList.add("starcat-readme-tab--active");
     tab.setAttribute("aria-selected", "true");
     placement.readmeTab.classList.add("starcat-readme-tab__github-inactive");
+    placement.tabAnchor.classList.add("starcat-readme-tab__github-inactive");
     placement.body.dataset.starcatReadmeBodyHidden = "true";
     placement.body.hidden = true;
     panel.hidden = false;
@@ -547,6 +617,7 @@
     tab.classList.remove("starcat-readme-tab--active");
     tab.setAttribute("aria-selected", "false");
     placement.readmeTab.classList.remove("starcat-readme-tab__github-inactive");
+    placement.tabAnchor.classList.remove("starcat-readme-tab__github-inactive");
     panel.hidden = true;
     delete placement.body.dataset.starcatReadmeBodyHidden;
     placement.body.hidden = false;
@@ -604,10 +675,119 @@
 
   function renderSummaryMarkdown(markdown) {
     const body = element("div", "starcat-ai-summary markdown-body");
-    const pre = element("pre", "starcat-ai-summary__text");
-    pre.textContent = markdown;
-    body.append(pre);
+    renderMarkdownBlocks(body, markdown);
     return body;
+  }
+
+  function renderMarkdownBlocks(container, markdown) {
+    const lines = String(markdown || "").replace(/\r\n/g, "\n").split("\n");
+    let index = 0;
+    while (index < lines.length) {
+      const line = lines[index];
+      if (!line.trim()) {
+        index += 1;
+        continue;
+      }
+
+      const fence = line.match(/^```(\w+)?\s*$/);
+      if (fence) {
+        const codeLines = [];
+        index += 1;
+        while (index < lines.length && !/^```\s*$/.test(lines[index])) {
+          codeLines.push(lines[index]);
+          index += 1;
+        }
+        if (index < lines.length) index += 1;
+        const pre = element("pre");
+        const code = element("code");
+        if (fence[1]) code.className = `language-${fence[1]}`;
+        code.textContent = codeLines.join("\n");
+        pre.append(code);
+        container.append(pre);
+        continue;
+      }
+
+      const heading = line.match(/^(#{1,6})\s+(.+)$/);
+      if (heading) {
+        const level = Math.min(6, heading[1].length + 1);
+        const node = element(`h${level}`);
+        appendInlineMarkdown(node, heading[2]);
+        container.append(node);
+        index += 1;
+        continue;
+      }
+
+      if (/^\s*[-*]\s+/.test(line)) {
+        const list = element("ul");
+        while (index < lines.length && /^\s*[-*]\s+/.test(lines[index])) {
+          const item = element("li");
+          appendInlineMarkdown(item, lines[index].replace(/^\s*[-*]\s+/, ""));
+          list.append(item);
+          index += 1;
+        }
+        container.append(list);
+        continue;
+      }
+
+      if (/^\s*\d+\.\s+/.test(line)) {
+        const list = element("ol");
+        while (index < lines.length && /^\s*\d+\.\s+/.test(lines[index])) {
+          const item = element("li");
+          appendInlineMarkdown(item, lines[index].replace(/^\s*\d+\.\s+/, ""));
+          list.append(item);
+          index += 1;
+        }
+        container.append(list);
+        continue;
+      }
+
+      const paragraphLines = [line.trim()];
+      index += 1;
+      while (index < lines.length && lines[index].trim() && !/^(#{1,6})\s+/.test(lines[index]) && !/^\s*([-*]|\d+\.)\s+/.test(lines[index]) && !/^```/.test(lines[index])) {
+        paragraphLines.push(lines[index].trim());
+        index += 1;
+      }
+      const paragraph = element("p");
+      appendInlineMarkdown(paragraph, paragraphLines.join(" "));
+      container.append(paragraph);
+    }
+  }
+
+  function appendInlineMarkdown(parent, text) {
+    const pattern = /(`[^`]+`|\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g;
+    let cursor = 0;
+    for (const match of String(text || "").matchAll(pattern)) {
+      if (match.index > cursor) {
+        parent.append(document.createTextNode(text.slice(cursor, match.index)));
+      }
+      const token = match[0];
+      if (token.startsWith("`")) {
+        parent.append(element("code", "", token.slice(1, -1)));
+      } else if (token.startsWith("**")) {
+        const strong = element("strong");
+        strong.textContent = token.slice(2, -2);
+        parent.append(strong);
+      } else {
+        const link = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+        const anchor = element("a");
+        anchor.textContent = link?.[1] || token;
+        anchor.href = safeMarkdownURL(link?.[2]) || "#";
+        anchor.rel = "noreferrer";
+        anchor.target = "_blank";
+        parent.append(anchor);
+      }
+      cursor = match.index + token.length;
+    }
+    if (cursor < text.length) {
+      parent.append(document.createTextNode(text.slice(cursor)));
+    }
+  }
+
+  function safeMarkdownURL(raw) {
+    const value = String(raw || "").trim();
+    if (/^(https?:|mailto:)/i.test(value)) return value;
+    if (value.startsWith("#") || value.startsWith("/")) return value;
+    return null;
   }
 
   function renderSignalButtons(context, repo, client, isPro) {
@@ -615,35 +795,60 @@
     if (!pageheadActions) return;
     if (context?.repo?.is_starred !== true) return;
 
-    if (context?.actions?.open_in_starcat === true) {
-      pageheadActions.append(openInStarcatItem(repo, client));
-    }
     pageheadActions.append(signalListItem("Health", context?.health, isPro, "health"));
   }
 
   function isGoogleSearchPage() {
-    return /^www\.google\./.test(location.hostname) && location.pathname === "/search";
+    return isGoogleHost(location.hostname) && location.pathname === "/search";
+  }
+
+  function isGoogleHost(hostname) {
+    const labels = String(hostname || "").toLowerCase().split(".").filter(Boolean);
+    if (labels[0] === "www") labels.shift();
+    // Chrome match patterns cannot express google.* country domains, so the
+    // manifest matches /search broadly and this runtime gate keeps non-Google
+    // search pages from reading the DOM or calling Starcat's local API.
+    return labels.length >= 2 && labels[0] === "google";
   }
 
   function findSearchResultRepoTargets() {
     const seen = new Set();
     const targets = [];
-    const anchors = [...document.querySelectorAll('a[href*="github.com/"]')]
+    const anchors = [...document.querySelectorAll("a[href]")]
       .sort((left, right) => Number(Boolean(right.querySelector("h3"))) - Number(Boolean(left.querySelector("h3"))));
     for (const anchor of anchors) {
       const repo = parseGitHubRepoFromSearchLink(anchor.href);
       if (!repo) continue;
 
       const title = anchor.querySelector("h3") || anchor.closest("h3") || anchor;
-      const result = anchor.closest("[data-sokoban-container], .MjjYud, .g") || title.parentElement;
+      const result = findSearchResultContainer(anchor, title);
       if (!result || seen.has(repo.fullName.toLowerCase())) continue;
-      const translateControl = findTranslateControl(result);
-      if (!translateControl) continue;
 
       seen.add(repo.fullName.toLowerCase());
-      targets.push({ repo, result, translateControl });
+      targets.push({ repo, result, title });
     }
     return targets.slice(0, 8);
+  }
+
+  function findSearchResultContainer(anchor, title) {
+    const resultItem = anchor.closest("[data-sokoban-container], .MjjYud, .g");
+    if (resultItem?.contains(title) && /github\.com/.test(textOf(resultItem))) {
+      return resultItem;
+    }
+
+    const candidates = [];
+    let node = anchor;
+    while (node && node !== document.body) {
+      if (node instanceof HTMLElement) candidates.push(node);
+      node = node.parentElement;
+    }
+
+    return candidates.find((candidate) => {
+      const text = textOf(candidate);
+      return candidate.contains(title)
+        && /github\.com/.test(text)
+        && candidate.querySelector("h3");
+    }) || resultItem || title.parentElement;
   }
 
   function parseGitHubRepoFromSearchLink(href) {
@@ -652,8 +857,17 @@
 
     try {
       const url = new URL(href);
-      const redirected = url.searchParams.get("q") || url.searchParams.get("url");
-      return redirected ? StarcatCompanion.parseGitHubRepo(redirected) : null;
+      const params = ["q", "url", "u", "imgurl"]
+        .map((key) => url.searchParams.get(key))
+        .filter(Boolean);
+      for (const value of params) {
+        const repo = StarcatCompanion.parseGitHubRepo(value);
+        if (repo) return repo;
+      }
+
+      const decoded = decodeURIComponent(href);
+      const match = decoded.match(/https?:\/\/github\.com\/[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+/);
+      return match ? StarcatCompanion.parseGitHubRepo(match[0]) : null;
     } catch {
       return null;
     }
@@ -661,38 +875,95 @@
 
   function renderSearchResultBadges(target, repo, context, client) {
     const result = target?.result;
-    const translateControl = target?.translateControl;
     if (!result || result.querySelector?.("[data-starcat-companion='search-result']")) return;
-    if (!translateControl?.parentElement || !result.contains(translateControl)) return;
 
-    const actions = element("span", "starcat-search-actions");
+    const actions = element("div", "starcat-search-actions");
     actions.dataset.starcatCompanion = "search-result";
     actions.append(
       element("span", "starcat-search-separator", "·"),
-      searchBadge("Open in Starcat", async (event) => {
+      searchBadge("Open in Starcat", starcatSearchIcon(), async (event) => {
         event.preventDefault();
         event.stopPropagation();
         await client.openAction(repo, "open-repo");
       }),
-      element("span", `starcat-search-health ${scoreToneClass(context?.health?.score, "health")}`, `Health ${formatScore(context?.health?.score)}`)
+      searchMetaBadge("Health", formatScore(context?.health?.score), healthSearchIcon(), scoreToneClass(context?.health?.score, "health"))
     );
-    translateControl.parentElement.insertBefore(actions, translateControl.nextSibling);
+    const anchor = findSearchResultSnippetAnchor(result, target?.title, repo);
+    // Insert directly after the snippet block so the actions visually belong
+    // to this result, while still avoiding Google's URL/translation row.
+    if (anchor?.parentElement && result.contains(anchor)) {
+      anchor.parentElement.insertBefore(actions, anchor.nextSibling);
+    } else {
+      result.append(actions);
+    }
   }
 
-  function findTranslateControl(result) {
-    const labels = ["翻译此页", "Translate this page", "翻譯這個網頁", "翻譯此頁"];
-    const candidates = [...result.querySelectorAll("a, button, span, div")]
-      .filter((node) => labels.some((label) => textOf(node) === label || textOf(node).includes(label)));
-    const node = candidates
-      .sort((left, right) => textOf(left).length - textOf(right).length)[0];
-    return node?.closest?.("a, button, [role='button']") || node || null;
+  function findSearchResultSnippetAnchor(result, title, repo) {
+    const titleNode = title?.closest?.("h3") || title;
+    const titleRect = titleNode?.getBoundingClientRect?.();
+    const titleText = textOf(titleNode);
+    const owner = escapeRegExp(repo.owner);
+    const name = escapeRegExp(repo.repo);
+    const repoPathPattern = new RegExp(`github\\.com\\s*(?:[›>\\/]\\s*)${owner}\\s*(?:[›>\\/]\\s*)${name}`, "i");
+    const snippet = [...result.querySelectorAll("div, span")]
+      .filter((node) => {
+        if (node.offsetParent === null || node.contains(titleNode) || node.querySelector?.("h3")) return false;
+        const text = textOf(node);
+        if (text.length < 40 || text.includes(titleText)) return false;
+        if (/github\.com/i.test(text) || repoPathPattern.test(text)) return false;
+        const rect = node.getBoundingClientRect?.();
+        return !titleRect || !rect || rect.top >= titleRect.bottom - 1;
+      })
+      .sort((left, right) => {
+        const leftTop = left.getBoundingClientRect?.().top || 0;
+        const rightTop = right.getBoundingClientRect?.().top || 0;
+        if (Math.abs(leftTop - rightTop) > 1) return leftTop - rightTop;
+        return textOf(left).length - textOf(right).length;
+      })[0];
+    if (!snippet) return null;
+
+    let anchor = snippet;
+    while (anchor.parentElement && anchor.parentElement !== result) {
+      const parent = anchor.parentElement;
+      if (parent.querySelector?.("h3")) break;
+      const parentText = textOf(parent);
+      if (!parentText.includes(textOf(anchor))) break;
+      if (parentText.length > textOf(anchor).length + 120) break;
+      anchor = parent;
+    }
+    return anchor;
   }
 
-  function searchBadge(label, onClick) {
-    const button = element("button", "starcat-search-badge", label);
+  function searchBadge(label, icon, onClick) {
+    const button = element("button", "starcat-search-badge");
     button.type = "button";
+    button.append(icon, document.createTextNode(label));
     button.addEventListener("click", onClick);
     return button;
+  }
+
+  function escapeRegExp(value) {
+    return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function searchMetaBadge(label, value, icon, toneClass) {
+    const badge = element("span", `starcat-search-health ${toneClass || ""}`.trim());
+    badge.append(icon, document.createTextNode(`${label} ${value}`));
+    return badge;
+  }
+
+  function starcatSearchIcon() {
+    const image = element("img", "starcat-search-icon");
+    image.src = chrome.runtime.getURL("src/assets/icons/icon-16.png");
+    image.alt = "";
+    image.decoding = "async";
+    image.loading = "lazy";
+    image.setAttribute("aria-hidden", "true");
+    return image;
+  }
+
+  function healthSearchIcon() {
+    return octicon("pulse", "starcat-search-icon starcat-search-icon--svg", "M6 2c.306 0 .582.187.696.471L10 10.731l1.304-3.26A.75.75 0 0 1 12 7h3.25a.75.75 0 0 1 0 1.5h-2.742l-1.812 4.529a.75.75 0 0 1-1.392 0L6 4.769 4.696 8.03A.75.75 0 0 1 4 8.5H.75a.75.75 0 0 1 0-1.5h2.742l1.812-4.529A.75.75 0 0 1 6 2Z");
   }
 
   function findPageheadActions() {
@@ -720,27 +991,6 @@
     return li;
   }
 
-  function openInStarcatItem(repo, client) {
-    const li = element("li", "starcat-pagehead-li");
-    li.dataset.starcatCompanion = "signal";
-    const button = element("button", "btn btn-sm starcat-pagehead-btn starcat-open-btn");
-    button.type = "button";
-    button.append(
-      element("span", "starcat-pagehead-label", "Open in Starcat")
-    );
-    button.addEventListener("click", async () => {
-      if (!repo || !client) return;
-      button.disabled = true;
-      try {
-        await client.openAction(repo, "open-repo");
-      } finally {
-        button.disabled = false;
-      }
-    });
-    li.append(button);
-    return li;
-  }
-
   function installCodeMenuHook() {
     const codeButton = [...document.querySelectorAll("button")]
       .find((node) => textOf(node) === "Code" && node.getAttribute("data-variant") === "primary");
@@ -756,7 +1006,10 @@
   function augmentCodeMenu() {
     if (!latestRenderState) return;
     const menu = findOpenCodeMenu();
-    if (!menu || menu.querySelector("[data-starcat-code-panel='true']")) return;
+    if (!menu) return;
+
+    insertCodeMenuOpenInStarcat(menu, latestRenderState);
+    if (menu.querySelector("[data-starcat-code-panel='true']")) return;
 
     const tabBar = findCodeMenuTabBar(menu);
     const starcatTab = element("button", "starcat-code-tab", "Starcat");
@@ -791,6 +1044,51 @@
       panel.hidden = false;
       menu.append(panel);
     }
+  }
+
+  function insertCodeMenuOpenInStarcat(menu, { context, repo, client }) {
+    if (context?.repo?.is_starred !== true || context?.actions?.open_in_starcat !== true) return;
+    if (menu.querySelector("[data-starcat-code-open='true']")) return;
+
+    const target = findCodeMenuActionRow(menu, ["Open in GitHub Copilot app", "Open with GitHub Desktop", "Download ZIP"]);
+    if (!target?.parentElement) return;
+
+    const button = element("button", "starcat-code-native-action");
+    button.type = "button";
+    button.dataset.starcatCompanion = "code-menu";
+    button.dataset.starcatCodeOpen = "true";
+    button.append(
+      starcatMarkIcon("starcat-code-item__icon"),
+      element("span", "starcat-code-native-action__label", "Open in Starcat app")
+    );
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      try {
+        await client.openAction(repo, "open-repo");
+      } finally {
+        button.disabled = false;
+      }
+    });
+    target.parentElement.insertBefore(button, target);
+  }
+
+  function findCodeMenuActionRow(menu, labels) {
+    const candidates = [...menu.querySelectorAll("a, button, [role='menuitem'], li, div")]
+      .filter((node) => node.offsetParent !== null && labels.some((label) => textOf(node).includes(label)))
+      .sort((left, right) => textOf(left).length - textOf(right).length);
+    const node = candidates[0];
+    if (!node) return null;
+    const clickable = node.closest?.("a, button, [role='menuitem'], li");
+    if (clickable) return clickable;
+
+    let row = node;
+    while (row.parentElement && row.parentElement !== menu) {
+      const parentText = textOf(row.parentElement);
+      const labelCount = labels.filter((label) => parentText.includes(label)).length;
+      if (labelCount > 1 || parentText.length > textOf(row).length + 80) break;
+      row = row.parentElement;
+    }
+    return row;
   }
 
   function findOpenCodeMenu() {
@@ -929,8 +1227,23 @@
     return row;
   }
 
-  function sectionTitle(title) {
-    return element("h2", "h4 mb-3", title);
+  function sectionTitle(title, iconSrc) {
+    // iconSrc 可选,sidebar 的三个 section 标题(Recommends/Notes/Tags)都传
+    // 同一个 starcatIconURL(),复用 starcat-readme-tab / code menu 的图标资源,
+    // 视觉上跟其它 Starcat 入口一致。不用 element(text) 是因为 textContent 会
+    // 清掉已 append 的子节点,改用显式 append(icon)+append(text) 两步
+    const node = element("h2", "h4 mb-3");
+    if (iconSrc) {
+      const icon = element("img", "starcat-section-title__icon");
+      icon.src = iconSrc;
+      icon.alt = "";
+      icon.decoding = "async";
+      icon.setAttribute("aria-hidden", "true");
+      icon.addEventListener("error", () => { icon.hidden = true; }, { once: true });
+      node.append(icon);
+    }
+    node.append(document.createTextNode(title));
+    return node;
   }
 
   function proLockedNotice(message) {
@@ -990,6 +1303,29 @@
     path.setAttribute("d", pathData);
     svg.append(path);
     svg.dataset.octicon = name;
+    return svg;
+  }
+
+  function starcatMarkIcon(className) {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("viewBox", "0 0 18 18");
+    svg.setAttribute("width", "16");
+    svg.setAttribute("height", "16");
+    svg.setAttribute("class", className);
+    svg.setAttribute("fill", "none");
+
+    const head = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    head.setAttribute("d", "M2.8 14.2V5.4L6 2L8 4.3H10L12 2L15.2 5.4V14.2Z");
+    head.setAttribute("stroke", "currentColor");
+    head.setAttribute("stroke-width", "1.8");
+    head.setAttribute("stroke-linejoin", "round");
+
+    const star = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    star.setAttribute("d", "M9 6.6L9.8 8.2L11.5 8.4L10.2 9.6L10.5 11.3L9 10.4L7.5 11.3L7.8 9.6L6.5 8.4L8.2 8.2Z");
+    star.setAttribute("fill", "currentColor");
+
+    svg.append(head, star);
     return svg;
   }
 

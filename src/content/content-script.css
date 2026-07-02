@@ -186,26 +186,66 @@
   gap: 8px;
 }
 
+.starcat-readme-tabbar-host {
+  position: relative !important;
+}
+
 .starcat-readme-tab {
+  position: absolute;
+  z-index: 2;
   display: inline-flex;
   align-items: center;
-  min-height: 48px;
-  padding: 0 16px;
+  justify-content: center;
+  min-height: 0;
+  padding: 0 12px;
   border: 0;
   border-bottom: 2px solid transparent;
   color: var(--fgColor-muted, #656d76);
   background: transparent;
   font: inherit;
+  font-size: inherit;
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
+  /* width 不再写死:JS 会移除 inline width,这里用 auto + min-width:0 让
+     absolute 定位的 button 按 fit-content 收缩到 "Starcat AI" 文本宽度,
+     避免旧版硬编码 128px 在窄 Box-header 里溢出到右侧 Watch/Fork/Star。 */
+  width: auto;
+  min-width: 0;
 }
 
-.starcat-readme-tab:hover,
-.starcat-readme-tab--active {
+.starcat-readme-tab:hover {
   color: var(--fgColor-default, #1f2328);
 }
 
+.starcat-readme-tab__icon {
+  /* 跟 GitHub 原生 UnderlineNav tab 图标尺寸对齐(14~16px),不写死 16 也行但
+     显式更稳:不同 DPR 下浏览器采样清晰度更可预测 */
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  border-radius: 3px;
+  /* vertical-align:middle 防止 img baseline 跟按钮文本不齐(GitHub 原生 tab
+     icon 也走 middle),不加这行图标会下沉 1~2px */
+  vertical-align: middle;
+  flex: 0 0 auto;
+}
+
+.starcat-section-title__icon {
+  /* 1em 跟 h2.h4 的 16px 字号联动:GitHub 改 .h4 字号时图标自动跟随,
+     满足"图标大小跟字体匹配"的诉求。margin-right: 6px 跟 .starcat-readme-tab__icon
+     一致,三个 section 标题(Recommends/Notes/Tags)icon↔text 间距统一 */
+  width: 1em;
+  height: 1em;
+  margin-right: 6px;
+  border-radius: 3px;
+  /* 跟 .starcat-readme-tab__icon 一样走 middle,防止 img baseline 跟
+     h2 内的文本 baseline 错位 */
+  vertical-align: middle;
+}
+
 .starcat-readme-tab--active {
+  color: var(--fgColor-default, #1f2328);
   border-bottom-color: var(--borderColor-accent-emphasis, #fd8c73);
 }
 
@@ -241,15 +281,16 @@
   text-align: right;
 }
 
-.starcat-ai-summary__text {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  color: inherit;
-  background: transparent;
-  font: inherit;
-  line-height: 1.55;
-  white-space: pre-wrap;
+.starcat-ai-summary {
+  max-width: none;
+}
+
+.starcat-ai-summary > :first-child {
+  margin-top: 0 !important;
+}
+
+.starcat-ai-summary > :last-child {
+  margin-bottom: 0 !important;
 }
 
 .starcat-ai-empty {
@@ -299,10 +340,6 @@
 
 .starcat-pagehead-label {
   font-weight: 600;
-}
-
-.starcat-open-btn {
-  color: var(--fgColor-accent, #0969da);
 }
 
 .starcat-score-counter {
@@ -363,6 +400,54 @@
   padding: 16px;
   border-top: 1px solid var(--borderColor-default, #d0d7de);
   background: var(--bgColor-default, #ffffff);
+}
+
+.starcat-code-native-action {
+  display: flex;
+  align-items: center;
+  /* GitHub 原生 Code 菜单里 row 的 icon↔text 间距是 6px,旧 8px 让我们塞的
+     "Open in Starcat app" 跟旁边 "Open in GitHub Copilot app" / "Download ZIP"
+     三行视觉密度不一致,文字 baseline 错位 */
+  gap: 6px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 16px;
+  border: 0;
+  color: var(--fgColor-default, #1f2328);
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.starcat-code-native-action:hover {
+  background: var(--bgColor-muted, #f6f8fa);
+}
+
+.starcat-code-native-action:disabled {
+  color: var(--fgColor-muted, #656d76);
+  cursor: default;
+}
+
+.starcat-code-native-action .starcat-code-item__icon {
+  /* 跟 GitHub 原生 row 内 SVG icon 一致 16×16;旧 20×20 + 32px PNG 资源
+     缩放后图标视觉偏大、文字 baseline 下沉,跟相邻 native row 对不齐。
+     margin-right: 4px 微调把文本往右推 4px,补偿新 icon 跟 GitHub 原生
+     SVG icon 视觉上 icon↔text 间距的细微差异 */
+  width: 16px;
+  height: 16px;
+  margin: 0 4px 0 0;
+  border-radius: 3px;
+  flex: 0 0 16px;
+}
+
+.starcat-code-native-action__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .starcat-code-panel__title {
@@ -432,19 +517,24 @@
 }
 
 .starcat-search-actions {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 6px;
-  margin-left: 8px;
+  width: fit-content;
+  margin-top: 3px;
+  margin-bottom: 0;
+  margin-left: 0;
+  vertical-align: baseline;
   direction: ltr;
   unicode-bidi: isolate;
   writing-mode: horizontal-tb;
   transform: none;
+  white-space: nowrap;
 }
 
 .starcat-search-separator {
   color: var(--fgColor-muted, #9aa0a6);
-  font-size: 13px;
+  font-size: inherit;
   line-height: 20px;
 }
 
@@ -452,17 +542,15 @@
 .starcat-search-health {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  height: 20px;
-  padding: 0 7px;
-  border: 1px solid var(--borderColor-muted, #d8dee4);
-  border-radius: 999px;
-  color: var(--fgColor-accent, #0969da);
-  background: var(--bgColor-default, #ffffff);
-  font-family: Arial, sans-serif;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 20px;
+  gap: 3px;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  line-height: inherit;
   direction: ltr;
   unicode-bidi: isolate;
   writing-mode: horizontal-tb;
@@ -472,25 +560,42 @@
 
 .starcat-search-badge {
   appearance: none;
+  color: var(--JKqx2, var(--fgColor-accent, #8ab4f8));
   cursor: pointer;
+  text-decoration: none;
 }
 
 .starcat-search-badge:hover {
-  border-color: var(--borderColor-accent-muted, #54aeff66);
-  background: var(--bgColor-accent-muted, #ddf4ff);
+  text-decoration: underline;
+}
+
+.starcat-search-health {
+  margin-left: 14px;
+}
+
+.starcat-search-icon {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
+  object-fit: contain;
+  vertical-align: -1px;
+}
+
+.starcat-search-icon--svg {
+  fill: currentColor;
 }
 
 .starcat-search-health.starcat-score--good {
-  color: var(--fgColor-success, #1a7f37);
-  background: var(--bgColor-success-muted, #dafbe1);
+  color: inherit;
+  background: transparent;
 }
 
 .starcat-search-health.starcat-score--warn {
-  color: var(--fgColor-attention, #9a6700);
-  background: var(--bgColor-attention-muted, #fff8c5);
+  color: inherit;
+  background: transparent;
 }
 
 .starcat-search-health.starcat-score--danger {
-  color: var(--fgColor-danger, #cf222e);
-  background: var(--bgColor-danger-muted, #ffebe9);
+  color: inherit;
+  background: transparent;
 }
