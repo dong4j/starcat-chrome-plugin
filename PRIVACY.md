@@ -19,9 +19,9 @@ The extension does not:
 The extension stores only the minimum pairing configuration in `chrome.storage.local`:
 
 - Starcat local service port.
-- Companion bearer token.
+- Starcat Local API Key.
 
-The bearer token is used only to authenticate requests to the local Starcat app service on `127.0.0.1`.
+The Local API Key is used only to authenticate requests to the local Starcat app service on `127.0.0.1`.
 
 ## Local Communication
 
