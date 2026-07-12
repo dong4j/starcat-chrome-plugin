@@ -51,7 +51,7 @@ brew install --cask starcat
 - [starcat-license-api](https://github.com/dong4j/starcat-license-api)
 <!-- starcat-promo:end -->
 
-Starcat Chrome Plugin 是 Starcat 的 GitHub 页面增强插件。它只在 GitHub repo 页面展示 Starcat 已有上下文, 不直接访问 GitHub API、Starcat 后端、OpenSSF 或 AI provider。
+Starcat Chrome Plugin 是 Starcat 的 GitHub 与 Google 搜索结果增强插件。它在 GitHub repo 页面展示 Starcat 已有上下文，并在 Google 搜索结果中为已 Star 的 GitHub 仓库显示本机 Starcat 入口和 Health 信息；它不直接访问 GitHub API、Starcat 后端、OpenSSF 或 AI provider。
 
 ## 功能范围
 
@@ -60,6 +60,7 @@ Starcat Chrome Plugin 是 Starcat 的 GitHub 页面增强插件。它只在 GitH
 - 读取、保存 Starcat 私人笔记。
 - 展示 Starcat 已缓存的 Health / OpenSSF 分数。
 - 触发 Starcat App 内的 CodeFlow / Codebase 动作。
+- 在 Google 搜索结果中为已 Star 的 GitHub 仓库展示 `Open in Starcat` 和 Health 徽标。
 
 ## 本地加载
 
@@ -103,6 +104,11 @@ Starcat Local API Key 只授权本机 loopback 接口, 不等同于 GitHub token
 | `src/popup/` | 左键点击插件图标时显示的快速配对弹窗。 |
 | `src/options/` | 端口、Local API Key 配置与连接测试页。 |
 | `src/content/` | GitHub repo 页面板注入与渲染。 |
+| `docs/` | 商店上架资料、隐私披露、审核说明与素材规范。 |
+
+## 发布资料
+
+商店发布前请先阅读 [docs/README.md](docs/README.md)。其中的资料以当前源码行为为准；特别是 Google 搜索页权限、Local API Key 配对和本机 Companion API 的数据边界。
 
 ## 验证
 

@@ -33,9 +33,11 @@ http://127.0.0.1:{port}/plugin/v1
 
 The Starcat app owns all business data, including repository context, private notes, wiki links, recommendations, health scores, and CodeFlow / Codebase actions.
 
-## GitHub Page Access
+## Page Access
 
-The extension reads the current GitHub page URL to identify the repository owner and name. It injects a Starcat panel into GitHub repository pages only.
+The extension reads the current GitHub page URL to identify the repository owner and name, and injects Starcat UI into GitHub repository pages.
+
+It also runs on Google Search result pages to identify links to GitHub repositories. For up to eight visible GitHub repository results, it uses the repository owner and name to request local Starcat context and may display an `Open in Starcat` action and Health information. It does not store the full Google page or send it to Starcat servers.
 
 ## Private Notes
 
