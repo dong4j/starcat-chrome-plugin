@@ -14,6 +14,8 @@
   const DEBOUNCE_MS = 500;
   const CACHE_TTL_MS = 60 * 1000;
   const MISSING_CONFIG_COOLDOWN_MS = 60 * 1000;
+  const GITHUB_STAR_CONFIRM_TIMEOUT_MS = 10 * 1000;
+  const GITHUB_STAR_POLL_MS = 120;
 
   let scheduledTimer = null;
   let lastURL = location.href;
@@ -24,6 +26,8 @@
   const contextCache = new Map();
   const inFlight = new Map();
   const noteDrafts = new Map();
+  const pendingStarStates = new Map();
+  const starStateSyncs = new Map();
 
   function scheduleRefresh(reason, options = {}) {
     window.clearTimeout(scheduledTimer);
@@ -92,8 +96,13 @@
     if (!force && cached && Date.now() - cached.loadedAt < CACHE_TTL_MS) {
       return cached.value;
     }
-    if (inFlight.has(key)) {
+    if (!force && inFlight.has(key)) {
       return inFlight.get(key);
+    }
+    if (force && inFlight.has(key)) {
+      // A Star/Unstar confirmation must never reuse the request that started
+      // before GitHub changed state. Wait for it to settle, then issue a new one.
+      await inFlight.get(key).catch(() => null);
     }
 
     const request = client.repoContext(repo)
@@ -131,7 +140,7 @@
     const sidebar = findSidebarBorderGrid();
     if (!sidebar) return;
 
-    sidebar.append(renderRecommendationsRow(context?.recommendations || [], isPro));
+    sidebar.append(renderRecommendationsRow(context, repo, client, isPro));
     insertNoteRow(sidebar, renderLibraryRow(context, repo, client));
     if (context?.note?.editable) {
       insertNoteRow(sidebar, renderNoteRow(context.note, repo, client));
@@ -164,14 +173,15 @@
         .some((heading) => textOf(heading).startsWith(title)));
   }
 
-  function renderRecommendationsRow(items, isPro) {
+  function renderRecommendationsRow(context, repo, client, isPro) {
     const row = borderGridRow("starcat-recommendations-row");
+    const items = context?.recommendations || [];
     // An empty recommendation list is a data state, not an entitlement state.
     // Keep the Pro CTA exclusive to users whose Companion response is actually locked.
     const content = !isPro
       ? proLockedNotice("Upgrade to Starcat Pro to view similar repositories.")
       : items.length
-        ? recommendationsList(items)
+        ? recommendationsList(items, context, repo, client, row)
         : element("div", "starcat-muted", "No similar repositories available yet.");
     row.querySelector(".BorderGrid-cell").append(
       sectionTitle("Recommends"),
@@ -180,12 +190,62 @@
     return row;
   }
 
-  function recommendationsList(items) {
+  function recommendationsList(items, context, repo, client, row) {
     const list = element("div", "starcat-sidebar-list");
-    for (const item of items.slice(0, 5)) {
+    for (const item of items) {
       list.append(recommendationCard(item));
     }
+    if (context?.recommendations_has_more === true) {
+      list.append(recommendationsLoadMore(context, repo, client, row));
+    }
     return list;
+  }
+
+  function recommendationsLoadMore(context, repo, client, row) {
+    const shell = element("div", "starcat-recommendations-more");
+    const button = element("button", "starcat-recommendations-more__button", "Load More");
+    const status = element("span", "starcat-muted starcat-recommendations-more__status");
+    button.type = "button";
+    button.addEventListener("click", async () => {
+      if (button.disabled) return;
+      button.disabled = true;
+      button.textContent = "Loading...";
+      status.textContent = "";
+      try {
+        const response = await client.loadMoreRecommendations(repo);
+        context.recommendations = mergeRecommendations(
+          context.recommendations || [],
+          response?.recommendations || []
+        );
+        context.recommendations_has_more = response?.has_more === true;
+        const cached = contextCache.get(repo.fullName.toLowerCase());
+        if (cached?.value) {
+          cached.value.recommendations = context.recommendations;
+          cached.value.recommendations_has_more = context.recommendations_has_more;
+        }
+        row.replaceWith(renderRecommendationsRow(context, repo, client, true));
+      } catch {
+        button.disabled = false;
+        button.textContent = "Load More";
+        status.textContent = "Load failed";
+      }
+    });
+    shell.append(button, status);
+    return shell;
+  }
+
+  function mergeRecommendations(existing, added) {
+    const merged = [];
+    const seen = new Set();
+    for (const item of [...existing, ...added]) {
+      const key = item?.repo_id != null
+        ? `id:${item.repo_id}`
+        : `name:${String(item?.full_name || "").toLowerCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(item);
+    }
+    return merged;
   }
 
   function recommendationCard(item) {
@@ -907,7 +967,7 @@
   function renderSignalButtons(context, repo, client, isPro) {
     const pageheadActions = findPageheadActions();
     if (!pageheadActions) return;
-    if (context?.repo?.is_starred !== true) return;
+    if (!isStarcatLocalRepo(context)) return;
 
     pageheadActions.append(signalListItem("Health", context?.health, isPro, "health"));
   }
@@ -1080,6 +1140,119 @@
     return octicon("pulse", "starcat-search-icon starcat-search-icon--svg", "M6 2c.306 0 .582.187.696.471L10 10.731l1.304-3.26A.75.75 0 0 1 12 7h3.25a.75.75 0 0 1 0 1.5h-2.742l-1.812 4.529a.75.75 0 0 1-1.392 0L6 4.769 4.696 8.03A.75.75 0 0 1 4 8.5H.75a.75.75 0 0 1 0-1.5h2.742l1.812-4.529A.75.75 0 0 1 6 2Z");
   }
 
+  function handleGitHubStarClick(event) {
+    if (!(event.target instanceof Element) || event.defaultPrevented) return;
+    const repo = StarcatCompanion.parseGitHubRepo(location.href);
+    if (!repo) return;
+
+    const control = findClickedGitHubStarControl(event.target);
+    const previousState = githubStarState(control);
+    if (previousState == null) return;
+
+    const expectedState = !previousState;
+    const pageURL = location.href;
+    waitForGitHubStarState(repo, expectedState, pageURL).then((confirmed) => {
+      if (confirmed) queueStarStateSync(repo, expectedState);
+    });
+  }
+
+  function findClickedGitHubStarControl(target) {
+    const clicked = target.closest("button, input[type='submit']");
+    if (!clicked || clicked.offsetParent === null) return null;
+    const active = findGitHubStarControl();
+    return active === clicked || active?.contains(target) ? active : null;
+  }
+
+  function findGitHubStarControl() {
+    const direct = [
+      ...document.querySelectorAll("[data-testid='star-button'], button[aria-label*='Star this repository'], button[aria-label*='Unstar this repository']")
+    ].find((node) => node.offsetParent !== null && githubStarState(node) != null);
+    if (direct) return direct;
+
+    const starCounter = document.querySelector("#repo-stars-counter-star");
+    const scope = starCounter?.closest("li") || findPageheadActions();
+    if (!scope) return null;
+    return [...scope.querySelectorAll("button, input[type='submit']")]
+      .find((node) => node.offsetParent !== null && githubStarState(node) != null) || null;
+  }
+
+  function githubStarState(control) {
+    if (!control) return null;
+    const label = [
+      control.getAttribute?.("aria-label"),
+      control.getAttribute?.("title"),
+      control.getAttribute?.("value"),
+      textOf(control)
+    ].filter(Boolean).join(" ");
+    if (/\bunstar\b|\bstarred\b/i.test(label)) return true;
+    if (/\bstar\b/i.test(label)) return false;
+    return null;
+  }
+
+  async function waitForGitHubStarState(repo, expectedState, pageURL) {
+    const deadline = Date.now() + GITHUB_STAR_CONFIRM_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => window.setTimeout(resolve, GITHUB_STAR_POLL_MS));
+      if (location.href !== pageURL) return false;
+      const activeRepo = StarcatCompanion.parseGitHubRepo(location.href);
+      if (!sameRepo(activeRepo, repo)) return false;
+      if (githubStarState(findGitHubStarControl()) === expectedState) return true;
+    }
+    return false;
+  }
+
+  function queueStarStateSync(repo, isStarred) {
+    const key = repo.fullName.toLowerCase();
+    // Keep only the latest confirmed target. If the user quickly stars and
+    // unstars again, the running loop will apply both in order without toggling.
+    pendingStarStates.set(key, { repo, isStarred });
+    if (starStateSyncs.has(key)) return;
+
+    const task = (async () => {
+      while (pendingStarStates.has(key)) {
+        const target = pendingStarStates.get(key);
+        pendingStarStates.delete(key);
+        await syncStarStateWithStarcat(target.repo, target.isStarred);
+      }
+    })().finally(() => {
+      starStateSyncs.delete(key);
+    });
+    starStateSyncs.set(key, task);
+  }
+
+  async function syncStarStateWithStarcat(repo, isStarred) {
+    try {
+      const config = await StarcatCompanion.loadConfig();
+      if (!config.token) throw new Error("missing_token");
+      const client = StarcatCompanion.createClient(config);
+      showStarcatToast(isStarred ? "Syncing Star with Starcat..." : "Syncing Unstar with Starcat...");
+      await client.syncStarState(repo, isStarred);
+
+      contextCache.delete(repo.fullName.toLowerCase());
+      const activeRepo = StarcatCompanion.parseGitHubRepo(location.href);
+      if (sameRepo(activeRepo, repo)) {
+        await refreshSurfaces("github-star-state", { force: true });
+      }
+      showStarcatToast(isStarred ? "Starcat Stars updated." : "Removed from Starcat Stars.");
+    } catch (error) {
+      showStarcatToast(starStateErrorMessage(error), true);
+    }
+  }
+
+  function sameRepo(left, right) {
+    return left?.fullName?.toLowerCase() === right?.fullName?.toLowerCase();
+  }
+
+  function starStateErrorMessage(error) {
+    if (error?.body?.error === "github_not_authenticated") {
+      return "Sign in to GitHub in Starcat, then try again.";
+    }
+    if (error?.message === "missing_token") {
+      return "Configure the Starcat Local API Key first.";
+    }
+    return "GitHub changed, but Starcat could not refresh Stars.";
+  }
+
   function findPageheadActions() {
     const starCounter = document.querySelector("#repo-stars-counter-star");
     let node = starCounter;
@@ -1161,7 +1334,7 @@
   }
 
   function insertCodeMenuOpenInStarcat(menu, { context, repo, client }) {
-    if (context?.repo?.is_starred !== true || context?.actions?.open_in_starcat !== true) return;
+    if (!isStarcatLocalRepo(context) || context?.actions?.open_in_starcat !== true) return;
     if (menu.querySelector("[data-starcat-code-open='true']")) return;
 
     const target = findCodeMenuActionRow(menu, ["Open in GitHub Copilot app", "Open with GitHub Desktop", "Download ZIP"]);
@@ -1489,6 +1662,7 @@
   });
   observer.observe(document.documentElement, { childList: true, subtree: true });
 
+  document.addEventListener("click", handleGitHubStarClick, true);
   window.addEventListener("popstate", () => scheduleRefresh("popstate", { force: true }));
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && (changes.starcatCompanionServiceURL || changes.starcatCompanionPort || changes.starcatCompanionToken)) {

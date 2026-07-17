@@ -217,6 +217,22 @@
         const params = new URLSearchParams({ owner: repo.owner, repo: repo.repo });
         return request(`/plugin/v1/repo-context?${params.toString()}`);
       },
+      syncStarState(repo, isStarred) {
+        return request("/plugin/v1/stars/state", {
+          method: "POST",
+          body: JSON.stringify({
+            owner: repo.owner,
+            repo: repo.repo,
+            state: isStarred ? "starred" : "unstarred"
+          })
+        });
+      },
+      loadMoreRecommendations(repo) {
+        return request("/plugin/v1/recommendations/more", {
+          method: "POST",
+          body: JSON.stringify({ owner: repo.owner, repo: repo.repo })
+        });
+      },
       saveNote(repo, content) {
         return request("/plugin/v1/notes", {
           method: "PATCH",
