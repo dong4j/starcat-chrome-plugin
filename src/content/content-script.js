@@ -166,9 +166,16 @@
 
   function renderRecommendationsRow(items, isPro) {
     const row = borderGridRow("starcat-recommendations-row");
+    // An empty recommendation list is a data state, not an entitlement state.
+    // Keep the Pro CTA exclusive to users whose Companion response is actually locked.
+    const content = !isPro
+      ? proLockedNotice("Upgrade to Starcat Pro to view similar repositories.")
+      : items.length
+        ? recommendationsList(items)
+        : element("div", "starcat-muted", "No similar repositories available yet.");
     row.querySelector(".BorderGrid-cell").append(
       sectionTitle("Recommends"),
-      isPro && items.length ? recommendationsList(items) : proLockedNotice("Upgrade to Starcat Pro to view similar repositories.")
+      content
     );
     return row;
   }
