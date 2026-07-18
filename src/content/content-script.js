@@ -20,6 +20,11 @@
   const NOTE_MAX_VISIBLE_ROWS = 10;
   const RECOMMENDATIONS_MAX_HEIGHT_PX = 820;
   const RECOMMENDATIONS_VIEWPORT_HEIGHT_RATIO = 0.78;
+  const PRO_FEATURE_STATE = Object.freeze({
+    LOCKED: "locked",
+    UNAVAILABLE: "unavailable",
+    AVAILABLE: "available"
+  });
 
   let scheduledTimer = null;
   let recommendationsResizeFrame = null;
@@ -141,6 +146,13 @@
     }
   }
 
+  // Entitlement and data availability are independent. Keeping this decision
+  // in one place prevents an empty payload from being mislabeled as Pro-only.
+  function proFeatureState(isPro, hasValue) {
+    if (!isPro) return PRO_FEATURE_STATE.LOCKED;
+    return hasValue ? PRO_FEATURE_STATE.AVAILABLE : PRO_FEATURE_STATE.UNAVAILABLE;
+  }
+
   function renderSidebarRows(context, repo, client, isPro) {
     const sidebar = findSidebarBorderGrid();
     if (!sidebar) return;
@@ -181,11 +193,10 @@
   function renderRecommendationsRow(context, repo, client, isPro) {
     const row = borderGridRow("starcat-recommendations-row");
     const items = context?.recommendations || [];
-    // An empty recommendation list is a data state, not an entitlement state.
-    // Keep the Pro CTA exclusive to users whose Companion response is actually locked.
-    const content = !isPro
+    const state = proFeatureState(isPro, items.length > 0);
+    const content = state === PRO_FEATURE_STATE.LOCKED
       ? proLockedNotice("Upgrade to Starcat Pro to view similar repositories.")
-      : items.length
+      : state === PRO_FEATURE_STATE.AVAILABLE
         ? recommendationsList(items, context, repo, client, row)
         : element("div", "starcat-muted", "No similar repositories available yet.");
     row.querySelector(".BorderGrid-cell").append(
@@ -316,18 +327,28 @@
   function recommendationCard(item) {
     const fullName = item.full_name || "";
     const [owner, repoName] = fullName.split("/");
-    const card = element("div", "Box d-flex p-3 width-full public source starcat-simrepo-card");
+    // The card itself is the repository link so the entire recommendation has
+    // one predictable click target and opens without replacing the current repo.
+    const card = element("a", "Box d-flex p-3 width-full public source starcat-simrepo-card");
+    card.href = `https://github.com/${fullName}`;
+    card.target = "_blank";
+    card.rel = "noopener noreferrer";
+    card.setAttribute("aria-label", fullName);
+    const languageAccent = item.language ? languageColor(item.language) : null;
+    if (languageAccent) {
+      card.classList.add("starcat-simrepo-card--language");
+      card.style.setProperty("--starcat-language-color", languageAccent);
+    }
     const content = element("div", "pinned-item-list-item-content");
     const header = element("div", "d-flex width-full position-relative");
     const title = element("div", "flex-1");
-    const link = element("a", "Link mr-1 text-bold wb-break-word");
-    link.href = fullName ? `/${fullName}` : "#";
-    link.append(
+    const repositoryTitle = element("span", "Link mr-1 text-bold wb-break-word");
+    repositoryTitle.append(
       element("span", "owner text-normal", owner ? `${owner}/` : ""),
       element("span", "repo", repoName || fullName)
     );
 
-    title.append(octicon("repo", "octicon octicon-repo color-fg-muted mr-2", "M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75H4.5A2.5 2.5 0 0 1 2 11.5Zm2.5-1A1 1 0 0 0 3.5 2.5v9A1 1 0 0 0 4.5 12.5h8V1.5Zm.75 4.25a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5H6a.75.75 0 0 1-.75-.75Zm.75 2.25a.75.75 0 0 0 0 1.5h3.5a.75.75 0 0 0 0-1.5Z"), link);
+    title.append(octicon("repo", "octicon octicon-repo color-fg-muted mr-2", "M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75H4.5A2.5 2.5 0 0 1 2 11.5Zm2.5-1A1 1 0 0 0 3.5 2.5v9A1 1 0 0 0 4.5 12.5h8V1.5Zm.75 4.25a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5H6a.75.75 0 0 1-.75-.75Zm.75 2.25a.75.75 0 0 0 0 1.5h3.5a.75.75 0 0 0 0-1.5Z"), repositoryTitle);
     header.append(title);
     content.append(header);
 
@@ -337,20 +358,20 @@
 
     const meta = element("p", "mb-0 mt-2 f6 color-fg-muted starcat-simrepo-meta");
     if (item.language) {
-      const language = element("span", "d-inline-block mr-3");
+      const language = element("span", "starcat-simrepo-badge starcat-simrepo-badge--language");
       const dot = element("span", "repo-language-color");
-      dot.style.backgroundColor = languageColor(item.language);
-      language.append(dot, document.createTextNode(` ${item.language}`));
+      dot.style.backgroundColor = languageAccent;
+      language.append(dot, document.createTextNode(item.language));
       meta.append(language);
     }
     if (Number.isFinite(item.stars)) {
-      const stars = element("span", "d-inline-block mr-3");
+      const stars = element("span", "starcat-simrepo-badge starcat-simrepo-badge--stars");
       stars.append(octicon("star", "octicon octicon-star mr-1", "M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.212.612a.75.75 0 0 1 .416 1.279l-3.047 2.97.719 4.196a.75.75 0 0 1-1.088.791L8 12.347l-3.767 1.98a.75.75 0 0 1-1.088-.79l.72-4.197-3.048-2.97a.75.75 0 0 1 .416-1.28l4.212-.611L7.327.668A.75.75 0 0 1 8 .25Z"), document.createTextNode(item.stars.toLocaleString()));
       meta.append(stars);
     }
     if (typeof item.score === "number") {
-      const score = element("span", "d-inline-block");
-      score.append(octicon("flame", "octicon octicon-flame mr-1", "M7.998 14.5c-1.427 0-2.573-.443-3.34-1.21-.757-.755-1.158-1.84-1.158-3.04 0-1.154.51-2.285 1.14-3.233.639-.961 1.43-1.79 1.99-2.323.39-.37.64-.72.77-1.006.129-.285.128-.49.08-.638a.75.75 0 0 1 1.06-.88c.716.394 1.49 1.12 2.068 2.02.43.67.742 1.454.838 2.297.18-.15.35-.32.508-.51a.75.75 0 0 1 1.316.355c.353 1.746.214 3.63-.623 5.136C11.785 13.02 10.254 14.5 7.998 14.5Z"), document.createTextNode(`score ${item.score.toFixed(2)}`));
+      const score = element("span", "starcat-simrepo-badge starcat-simrepo-badge--score");
+      score.append(octicon("flame", "octicon octicon-flame mr-1", "M7.998 14.5c-1.427 0-2.573-.443-3.34-1.21-.757-.755-1.158-1.84-1.158-3.04 0-1.154.51-2.285 1.14-3.233.639-.961 1.43-1.79 1.99-2.323.39-.37.64-.72.77-1.006.129-.285.128-.49.08-.638a.75.75 0 0 1 1.06-.88c.716.394 1.49 1.12 2.068 2.02.43.67.742 1.454.838 2.297.18-.15.35-.32.508-.51a.75.75 0 0 1 1.316.355c.353 1.746.214 3.63-.623 5.136C11.785 13.02 10.254 14.5 7.998 14.5Z"), document.createTextNode(item.score.toFixed(2)));
       meta.append(score);
     }
     content.append(meta);
@@ -898,6 +919,10 @@
     panel.replaceChildren();
     const summary = context?.ai_summary;
     const actions = context?.actions || {};
+    const state = proFeatureState(
+      context?.entitlement?.is_pro === true,
+      Boolean(summary?.markdown)
+    );
     const header = element("div", "starcat-ai-readme-header");
     header.append(
       element("h2", "starcat-ai-readme-title", "Starcat AI"),
@@ -905,8 +930,13 @@
     );
     panel.append(header);
 
-    if (summary?.markdown) {
+    if (state === PRO_FEATURE_STATE.AVAILABLE) {
       panel.append(renderSummaryMarkdown(summary.markdown));
+      return;
+    }
+
+    if (state === PRO_FEATURE_STATE.LOCKED) {
+      panel.append(proLockedNotice("Upgrade to Starcat Pro to view and generate AI summaries."));
       return;
     }
 
@@ -1163,6 +1193,21 @@
     const result = target?.result;
     if (!result || result.querySelector?.("[data-starcat-companion='search-result']")) return;
 
+    const healthState = proFeatureState(
+      context?.entitlement?.is_pro === true,
+      Boolean(context?.health)
+    );
+    const healthValue = healthState === PRO_FEATURE_STATE.LOCKED
+      ? "Pro"
+      : healthState === PRO_FEATURE_STATE.AVAILABLE
+        ? formatScore(context.health.score)
+        : "—";
+    const healthTone = healthState === PRO_FEATURE_STATE.LOCKED
+      ? "starcat-score--locked"
+      : healthState === PRO_FEATURE_STATE.AVAILABLE
+        ? scoreToneClass(context.health.score, "health")
+        : "starcat-score--unavailable";
+
     const actions = element("div", "starcat-search-actions");
     actions.dataset.starcatCompanion = "search-result";
     actions.append(
@@ -1172,7 +1217,7 @@
         event.stopPropagation();
         await client.openAction(repo, "open-repo");
       }),
-      searchMetaBadge("Health", formatScore(context?.health?.score), healthSearchIcon(), scoreToneClass(context?.health?.score, "health"))
+      searchMetaBadge("Health", healthValue, healthSearchIcon(), healthTone)
     );
     const anchor = findSearchResultSnippetAnchor(result, target?.title, repo);
     // Insert directly after the snippet block so the actions visually belong
@@ -1375,13 +1420,23 @@
     return document.querySelector("ul.pagehead-actions");
   }
 
-  function signalListItem(label, signal, enabled, kind) {
+  function signalListItem(label, signal, isPro, kind) {
     const li = element("li", "starcat-pagehead-li");
     li.dataset.starcatCompanion = "signal";
-    const scoreText = enabled && signal ? formatSignalScore(signal) : "Pro";
-    const button = element("button", `btn btn-sm starcat-pagehead-btn ${enabled && signal ? scoreToneClass(signal.score, kind) : "starcat-score--locked"}`);
+    const state = proFeatureState(isPro, Boolean(signal));
+    const scoreText = state === PRO_FEATURE_STATE.LOCKED
+      ? "Pro"
+      : state === PRO_FEATURE_STATE.AVAILABLE
+        ? formatSignalScore(signal)
+        : "—";
+    const toneClass = state === PRO_FEATURE_STATE.LOCKED
+      ? "starcat-score--locked"
+      : state === PRO_FEATURE_STATE.AVAILABLE
+        ? scoreToneClass(signal.score, kind)
+        : "starcat-score--unavailable";
+    const button = element("button", `btn btn-sm starcat-pagehead-btn ${toneClass}`);
     button.type = "button";
-    button.disabled = !enabled || !signal;
+    button.disabled = state !== PRO_FEATURE_STATE.AVAILABLE;
     button.append(
       element("span", "starcat-pagehead-label", label),
       element("span", "Counter starcat-score-counter", scoreText)
@@ -1524,14 +1579,20 @@
 
     const wikiLinks = context?.wiki_links || [];
     const actions = context?.actions || {};
+    const wikiState = proFeatureState(isPro, wikiLinks.length > 0);
+    const codeflowState = proFeatureState(isPro, actions.codeflow === true);
+    const codebaseState = proFeatureState(isPro, actions.codebase === true);
+    const wikiItems = wikiState === PRO_FEATURE_STATE.AVAILABLE
+      ? wikiLinks.map((link) => codeMenuLink(link.title || link.source || "Wiki", link.url, wikiIconFor(link)))
+      : [codeMenuEmpty(wikiState === PRO_FEATURE_STATE.LOCKED
+        ? "Starcat Pro required."
+        : "No wiki links from Starcat.")];
     panel.append(
       element("h3", "starcat-code-panel__title", "Starcat"),
-      codeMenuGroup("Wiki", isPro && wikiLinks.length
-        ? wikiLinks.map((link) => codeMenuLink(link.title || link.source || "Wiki", link.url, wikiIconFor(link)))
-        : [codeMenuEmpty(isPro ? "No wiki links from Starcat." : "Starcat Pro required.")]),
+      codeMenuGroup("Wiki", wikiItems),
       codeMenuGroup("Actions", [
-        codeMenuAction("CodeFlow", isPro && actions.codeflow === true, codeMenuIcon("codeflow"), () => client.openAction(repo, "codeflow")),
-        codeMenuAction("Codebase", isPro && actions.codebase === true, codeMenuIcon("codebase"), () => client.openAction(repo, "codebase"))
+        codeMenuAction("CodeFlow", codeflowState, codeMenuIcon("codeflow"), () => client.openAction(repo, "codeflow")),
+        codeMenuAction("Codebase", codebaseState, codeMenuIcon("codebase"), () => client.openAction(repo, "codebase"))
       ])
     );
     return panel;
@@ -1552,11 +1613,15 @@
     return anchor;
   }
 
-  function codeMenuAction(label, enabled, iconURL, onClick) {
+  function codeMenuAction(label, state, iconURL, onClick) {
     const button = element("button", "starcat-code-item");
     button.type = "button";
-    button.disabled = !enabled;
+    button.disabled = state !== PRO_FEATURE_STATE.AVAILABLE;
     button.append(codeMenuIconNode(iconURL, label), element("span", "starcat-code-item__label", label));
+    if (state !== PRO_FEATURE_STATE.AVAILABLE) {
+      const statusText = state === PRO_FEATURE_STATE.LOCKED ? "Pro" : "Unavailable";
+      button.append(element("span", `starcat-code-item__state starcat-code-item__state--${state}`, statusText));
+    }
     button.addEventListener("click", async () => {
       if (button.disabled) return;
       button.disabled = true;
@@ -1666,23 +1731,41 @@
   }
 
   function languageColor(language) {
+    // Keep this palette aligned with Starcat's LanguageColor so repository rows
+    // use the same visual identity in the app and browser extensions.
     const colors = {
-      TypeScript: "#3178c6",
-      JavaScript: "#f1e05a",
-      "C++": "#f34b7d",
-      Swift: "#f05138",
-      Python: "#3572a5",
-      Rust: "#dea584",
-      Go: "#00add8",
-      Java: "#b07219",
-      CSS: "#563d7c",
-      HTML: "#e34c26",
-      Ruby: "#701516",
-      PHP: "#4f5d95",
-      Kotlin: "#a97bff",
-      Shell: "#89e051"
+      Swift: "#f04f33",
+      "Objective-C": "#4580eb",
+      Kotlin: "#9e6bfc",
+      Java: "#b0611f",
+      Go: "#00add6",
+      Rust: "#db6945",
+      Python: "#3b75b0",
+      JavaScript: "#f0db52",
+      TypeScript: "#2e75c7",
+      C: "#54575c",
+      "C++": "#f23669",
+      "C#": "#1a8c33",
+      Ruby: "#d61f2e",
+      PHP: "#4d5796",
+      Shell: "#8cd94f",
+      HTML: "#e65221",
+      CSS: "#5775c7",
+      Vue: "#40b882",
+      Lua: "#000080",
+      Dart: "#00b5d4",
+      R: "#1f63a6",
+      Scala: "#c23329",
+      Elixir: "#6b4d82",
+      Haskell: "#5c69a8",
+      Zig: "#f0a61a",
+      Solidity: "#ababab",
+      MDX: "#fca852",
+      Markdown: "#525252",
+      "Jupyter Notebook": "#db7d29",
+      "Vim Script": "#1a9e29"
     };
-    return colors[language] || "var(--fgColor-muted, #656d76)";
+    return colors[language] || "#8c8c8c";
   }
 
   function octicon(name, className, pathData) {

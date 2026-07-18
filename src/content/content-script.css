@@ -15,12 +15,25 @@
 
 .starcat-simrepo-card {
   border-color: var(--borderColor-default, #d0d7de);
+  color: inherit;
   background: var(--bgColor-default, #ffffff);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.starcat-simrepo-card--language {
+  border-color: color-mix(in srgb, var(--starcat-language-color) 10%, var(--borderColor-default, #d0d7de));
+  background: color-mix(in srgb, var(--starcat-language-color) 4.5%, var(--bgColor-default, #ffffff));
 }
 
 .starcat-simrepo-card:hover {
   border-color: var(--borderColor-accent-muted, #54aeff66);
   background: var(--bgColor-muted, #f6f8fa);
+}
+
+.starcat-simrepo-card--language:hover {
+  border-color: color-mix(in srgb, var(--starcat-language-color) 18%, var(--borderColor-default, #d0d7de));
+  background: color-mix(in srgb, var(--starcat-language-color) 8%, var(--bgColor-default, #ffffff));
 }
 
 .starcat-simrepo-card .pinned-item-list-item-content {
@@ -32,24 +45,67 @@
   text-decoration: none;
 }
 
-.starcat-simrepo-card .Link:hover {
+.starcat-simrepo-card:hover .Link {
   color: var(--fgColor-accent, #0969da);
   text-decoration: underline;
+}
+
+.starcat-simrepo-card:focus-visible {
+  outline: 2px solid var(--focus-outlineColor, #0969da);
+  outline-offset: 2px;
 }
 
 .starcat-simrepo-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 0;
+  gap: 6px;
 }
 
 .starcat-simrepo-meta .repo-language-color {
-  position: relative;
-  top: 1px;
   display: inline-block;
-  width: 12px;
-  height: 12px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
+}
+
+/* Mirror Starcat's compact metadata chips while using GitHub semantic colors. */
+.starcat-simrepo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 7px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 13px;
+  white-space: nowrap;
+}
+
+.starcat-simrepo-badge > .octicon {
+  width: 13px;
+  height: 13px;
+  margin-right: 0 !important;
+}
+
+.starcat-simrepo-badge--language {
+  color: var(--fgColor-default, #1f2328);
+  background: color-mix(in srgb, var(--starcat-language-color) 13%, transparent);
+}
+
+.starcat-simrepo-badge--stars {
+  /* Match the filled Star icon used by GitHub's Starred button. */
+  --starcat-github-star-color: #e7bd46;
+  color: var(--fgColor-muted, #656d76);
+  background: color-mix(in srgb, var(--starcat-github-star-color) 14%, transparent);
+}
+
+.starcat-simrepo-badge--stars > .octicon {
+  color: var(--starcat-github-star-color);
+}
+
+.starcat-simrepo-badge--score {
+  color: var(--fgColor-danger, #cf222e);
+  background: color-mix(in srgb, var(--fgColor-danger, #cf222e) 12%, transparent);
 }
 
 .starcat-recommendations-more {
@@ -472,6 +528,7 @@
 }
 
 .starcat-score--unknown .starcat-score-counter,
+.starcat-score--unavailable .starcat-score-counter,
 .starcat-score--locked .starcat-score-counter {
   color: var(--fgColor-muted, #656d76);
   background: var(--bgColor-muted, #f6f8fa);
@@ -603,6 +660,18 @@
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.starcat-code-item__state {
+  margin-left: auto;
+  padding: 2px 6px;
+  border-radius: 9999px;
+  color: var(--fgColor-muted, #656d76);
+  background: var(--bgColor-muted, #f6f8fa);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
   white-space: nowrap;
 }
 
