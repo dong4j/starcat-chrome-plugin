@@ -975,7 +975,9 @@
 
       const heading = line.match(/^(#{1,6})\s+(.+)$/);
       if (heading) {
-        const level = Math.min(6, heading[1].length + 1);
+        // Preserve the source Markdown level so AI summary headings use the
+        // same GitHub typography hierarchy as headings in the native README.
+        const level = heading[1].length;
         const node = element(`h${level}`);
         appendInlineMarkdown(node, heading[2]);
         container.append(node);
