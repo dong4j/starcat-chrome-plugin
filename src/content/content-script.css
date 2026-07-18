@@ -3,11 +3,14 @@
   gap: 8px;
 }
 
-.starcat-recommendations-list {
+.starcat-recommendations-viewport {
   position: relative;
+  box-sizing: border-box;
   max-height: min(820px, 78vh);
   overflow-y: auto;
-  padding-right: 4px;
+  /* Reserve a dedicated lane for both classic and macOS overlay scrollbars. */
+  padding-inline-end: 12px;
+  scrollbar-gutter: stable;
 }
 
 .starcat-simrepo-card {

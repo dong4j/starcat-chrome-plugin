@@ -198,11 +198,15 @@
 
   function recommendationsList(items, context, repo, client, row) {
     const shell = element("div", "starcat-recommendations");
+    // Keep scrolling on a wrapper outside the card grid. Overlay scrollbars then
+    // receive their own gutter instead of painting over the card border/content.
+    const viewport = element("div", "starcat-recommendations-viewport");
     const list = element("div", "starcat-sidebar-list starcat-recommendations-list");
     for (const item of items) {
       list.append(recommendationCard(item));
     }
-    shell.append(list);
+    viewport.append(list);
+    shell.append(viewport);
     if (context?.recommendations_has_more === true) {
       // Keep the paging action outside the scroll viewport so loading more never
       // pushes the button beyond the visible GitHub repository sidebar.
@@ -216,8 +220,9 @@
   }
 
   function fitRecommendationsViewport(row) {
-    const list = row.querySelector(".starcat-recommendations-list");
-    if (!list?.isConnected) return;
+    const viewport = row.querySelector(".starcat-recommendations-viewport");
+    const list = viewport?.querySelector(".starcat-recommendations-list");
+    if (!viewport?.isConnected || !list?.isConnected) return;
 
     const targetHeight = Math.min(
       RECOMMENDATIONS_MAX_HEIGHT_PX,
@@ -235,7 +240,7 @@
       fittedHeight = cardBottom;
       if (cardBottom >= targetHeight) break;
     }
-    if (fittedHeight > 0) list.style.maxHeight = `${fittedHeight}px`;
+    if (fittedHeight > 0) viewport.style.maxHeight = `${fittedHeight}px`;
   }
 
   function scheduleVisibleRecommendationsViewportFit() {
@@ -268,7 +273,7 @@
       button.textContent = "Loading...";
       status.textContent = "";
       try {
-        const previousScrollTop = row.querySelector(".starcat-recommendations-list")?.scrollTop || 0;
+        const previousScrollTop = row.querySelector(".starcat-recommendations-viewport")?.scrollTop || 0;
         const response = await client.loadMoreRecommendations(repo);
         context.recommendations = mergeRecommendations(
           context.recommendations || [],
@@ -282,8 +287,8 @@
         }
         const replacement = renderRecommendationsRow(context, repo, client, true);
         row.replaceWith(replacement);
-        const replacementList = replacement.querySelector(".starcat-recommendations-list");
-        if (replacementList) replacementList.scrollTop = previousScrollTop;
+        const replacementViewport = replacement.querySelector(".starcat-recommendations-viewport");
+        if (replacementViewport) replacementViewport.scrollTop = previousScrollTop;
       } catch {
         button.disabled = false;
         button.textContent = "Load More";
