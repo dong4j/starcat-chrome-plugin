@@ -16,6 +16,7 @@
   const MISSING_CONFIG_COOLDOWN_MS = 60 * 1000;
   const GITHUB_STAR_CONFIRM_TIMEOUT_MS = 10 * 1000;
   const GITHUB_STAR_POLL_MS = 120;
+  const GITHUB_REPOSITORY_CONTENT_ROUTES = new Set(["tree", "blob"]);
 
   let scheduledTimer = null;
   let lastURL = location.href;
@@ -44,7 +45,7 @@
       return;
     }
 
-    const repo = StarcatCompanion.parseGitHubRepo(location.href);
+    const repo = currentGitHubRepositoryPage();
     if (!repo) {
       removeStarcatNodes();
       return;
@@ -976,6 +977,19 @@
     return isGoogleHost(location.hostname) && location.pathname === "/search";
   }
 
+  function currentGitHubRepositoryPage() {
+    const repo = StarcatCompanion.parseGitHubRepo(location.href);
+    if (!repo) return null;
+
+    const parts = location.pathname.split("/").filter(Boolean);
+    if (parts.length === 2) return repo;
+
+    // GitHub reuses generic sidebar classes on repository settings pages. Keep
+    // injection limited to repository code views so those fallbacks cannot
+    // attach Starcat controls to Settings, Issues, Actions, or similar routes.
+    return GITHUB_REPOSITORY_CONTENT_ROUTES.has(parts[2]) ? repo : null;
+  }
+
   function isGoogleHost(hostname) {
     const labels = String(hostname || "").toLowerCase().split(".").filter(Boolean);
     if (labels[0] === "www") labels.shift();
@@ -1142,7 +1156,7 @@
 
   function handleGitHubStarClick(event) {
     if (!(event.target instanceof Element) || event.defaultPrevented) return;
-    const repo = StarcatCompanion.parseGitHubRepo(location.href);
+    const repo = currentGitHubRepositoryPage();
     if (!repo) return;
 
     const control = findClickedGitHubStarControl(event.target);
@@ -1194,7 +1208,7 @@
     while (Date.now() < deadline) {
       await new Promise((resolve) => window.setTimeout(resolve, GITHUB_STAR_POLL_MS));
       if (location.href !== pageURL) return false;
-      const activeRepo = StarcatCompanion.parseGitHubRepo(location.href);
+      const activeRepo = currentGitHubRepositoryPage();
       if (!sameRepo(activeRepo, repo)) return false;
       if (githubStarState(findGitHubStarControl()) === expectedState) return true;
     }
@@ -1229,7 +1243,7 @@
       await client.syncStarState(repo, isStarred);
 
       contextCache.delete(repo.fullName.toLowerCase());
-      const activeRepo = StarcatCompanion.parseGitHubRepo(location.href);
+      const activeRepo = currentGitHubRepositoryPage();
       if (sameRepo(activeRepo, repo)) {
         await refreshSurfaces("github-star-state", { force: true });
       }
@@ -1622,6 +1636,7 @@
 
   function removeStarcatNodes() {
     closeEventSubscription();
+    latestRenderState = null;
     document.querySelectorAll("[data-starcat-readme-body-hidden='true']").forEach((node) => {
       node.hidden = false;
       delete node.dataset.starcatReadmeBodyHidden;
@@ -1650,13 +1665,16 @@
       lastURL = location.href;
       contextCache.clear();
       noteDrafts.clear();
+      removeStarcatNodes();
       scheduleRefresh("url", { force: true });
       return;
     }
     if (isStarcatInputActive()) return;
+    const repo = currentGitHubRepositoryPage();
+    if (!repo && !isGoogleSearchPage()) return;
     installCodeMenuHook();
     augmentCodeMenu();
-    if ((StarcatCompanion.parseGitHubRepo(location.href) || isGoogleSearchPage()) && !document.querySelector(ROOT_SELECTOR)) {
+    if ((repo || isGoogleSearchPage()) && !document.querySelector(ROOT_SELECTOR)) {
       scheduleRefresh("mount-missing");
     }
   });
