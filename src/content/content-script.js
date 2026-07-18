@@ -17,8 +17,12 @@
   const GITHUB_STAR_CONFIRM_TIMEOUT_MS = 10 * 1000;
   const GITHUB_STAR_POLL_MS = 120;
   const GITHUB_REPOSITORY_CONTENT_ROUTES = new Set(["tree", "blob"]);
+  const NOTE_MAX_VISIBLE_ROWS = 10;
+  const RECOMMENDATIONS_MAX_HEIGHT_PX = 820;
+  const RECOMMENDATIONS_VIEWPORT_HEIGHT_RATIO = 0.78;
 
   let scheduledTimer = null;
+  let recommendationsResizeFrame = null;
   let lastURL = location.href;
   let missingConfigUntil = 0;
   let suppressMutations = false;
@@ -188,18 +192,69 @@
       sectionTitle("Recommends"),
       content
     );
+    scheduleRecommendationsViewportFit(row);
     return row;
   }
 
   function recommendationsList(items, context, repo, client, row) {
-    const list = element("div", "starcat-sidebar-list");
+    const shell = element("div", "starcat-recommendations");
+    const list = element("div", "starcat-sidebar-list starcat-recommendations-list");
     for (const item of items) {
       list.append(recommendationCard(item));
     }
+    shell.append(list);
     if (context?.recommendations_has_more === true) {
-      list.append(recommendationsLoadMore(context, repo, client, row));
+      // Keep the paging action outside the scroll viewport so loading more never
+      // pushes the button beyond the visible GitHub repository sidebar.
+      shell.append(recommendationsLoadMore(context, repo, client, row));
     }
-    return list;
+    return shell;
+  }
+
+  function scheduleRecommendationsViewportFit(row) {
+    window.requestAnimationFrame(() => fitRecommendationsViewport(row));
+  }
+
+  function fitRecommendationsViewport(row) {
+    const list = row.querySelector(".starcat-recommendations-list");
+    if (!list?.isConnected) return;
+
+    const targetHeight = Math.min(
+      RECOMMENDATIONS_MAX_HEIGHT_PX,
+      window.innerHeight * RECOMMENDATIONS_VIEWPORT_HEIGHT_RATIO
+    );
+    if (!Number.isFinite(targetHeight) || targetHeight <= 0) return;
+
+    const cards = [...list.children]
+      .filter((node) => node.classList.contains("starcat-simrepo-card"));
+    let fittedHeight = 0;
+    for (const card of cards) {
+      const cardBottom = Math.ceil(card.offsetTop + card.offsetHeight);
+      if (cardBottom > targetHeight && fittedHeight > 0) break;
+      // Always keep at least one card complete, even in an unusually short window.
+      fittedHeight = cardBottom;
+      if (cardBottom >= targetHeight) break;
+    }
+    if (fittedHeight > 0) list.style.maxHeight = `${fittedHeight}px`;
+  }
+
+  function scheduleVisibleRecommendationsViewportFit() {
+    if (recommendationsResizeFrame !== null) {
+      window.cancelAnimationFrame(recommendationsResizeFrame);
+    }
+    recommendationsResizeFrame = window.requestAnimationFrame(() => {
+      recommendationsResizeFrame = null;
+      document.querySelectorAll(".starcat-recommendations-row")
+        .forEach((row) => fitRecommendationsViewport(row));
+    });
+  }
+
+  function scheduleVisibleSidebarFit() {
+    scheduleVisibleRecommendationsViewportFit();
+    window.requestAnimationFrame(() => {
+      const textarea = document.querySelector("#starcat-note-row textarea.starcat-note");
+      if (textarea) fitNoteTextarea(textarea);
+    });
   }
 
   function recommendationsLoadMore(context, repo, client, row) {
@@ -213,6 +268,7 @@
       button.textContent = "Loading...";
       status.textContent = "";
       try {
+        const previousScrollTop = row.querySelector(".starcat-recommendations-list")?.scrollTop || 0;
         const response = await client.loadMoreRecommendations(repo);
         context.recommendations = mergeRecommendations(
           context.recommendations || [],
@@ -224,7 +280,10 @@
           cached.value.recommendations = context.recommendations;
           cached.value.recommendations_has_more = context.recommendations_has_more;
         }
-        row.replaceWith(renderRecommendationsRow(context, repo, client, true));
+        const replacement = renderRecommendationsRow(context, repo, client, true);
+        row.replaceWith(replacement);
+        const replacementList = replacement.querySelector(".starcat-recommendations-list");
+        if (replacementList) replacementList.scrollTop = previousScrollTop;
       } catch {
         button.disabled = false;
         button.textContent = "Load More";
@@ -332,8 +391,10 @@
     });
 
     const header = element("div", "starcat-library-header");
-    header.append(sectionTitle("Library"), button);
-    row.querySelector(".BorderGrid-cell").append(header, status);
+    const actions = element("div", "starcat-section-actions");
+    actions.append(status, button);
+    header.append(sectionTitle("Library"), actions);
+    row.querySelector(".BorderGrid-cell").append(header);
     return row;
   }
 
@@ -395,11 +456,11 @@
     const textarea = element("textarea", "form-control width-full starcat-note");
     const key = repo.fullName.toLowerCase();
     textarea.value = noteDrafts.has(key) ? noteDrafts.get(key) : note.content || "";
-    textarea.rows = 4;
     textarea.maxLength = 20000;
     textarea.placeholder = "Private note";
     textarea.addEventListener("input", () => {
       noteDrafts.set(key, textarea.value);
+      fitNoteTextarea(textarea);
     });
 
     const header = element("div", "starcat-note-header");
@@ -427,7 +488,34 @@
 
     header.append(sectionTitle("Notes"), button);
     row.querySelector(".BorderGrid-cell").append(header, textarea, status);
+    fitNoteTextarea(textarea);
+    window.requestAnimationFrame(() => {
+      if (textarea.isConnected) fitNoteTextarea(textarea);
+    });
     return row;
+  }
+
+  function fitNoteTextarea(textarea) {
+    const hasContent = textarea.value.length > 0;
+    textarea.rows = hasContent ? 1 : 2;
+    textarea.style.height = "auto";
+    textarea.style.overflowY = "hidden";
+    if (!hasContent) return;
+
+    const styles = window.getComputedStyle(textarea);
+    const lineHeight = Number.parseFloat(styles.lineHeight)
+      || Number.parseFloat(styles.fontSize) * 1.2;
+    if (!Number.isFinite(lineHeight) || lineHeight <= 0) return;
+
+    const borderHeight = (Number.parseFloat(styles.borderTopWidth) || 0)
+      + (Number.parseFloat(styles.borderBottomWidth) || 0);
+    const oneRowHeight = textarea.clientHeight + borderHeight;
+    const maxHeight = oneRowHeight + lineHeight * (NOTE_MAX_VISIBLE_ROWS - 1);
+    const contentHeight = textarea.scrollHeight + borderHeight;
+    // Measure rendered lines instead of newline characters so wrapped notes also
+    // grow naturally, while long notes remain bounded inside the GitHub sidebar.
+    textarea.style.height = `${Math.min(contentHeight, maxHeight)}px`;
+    textarea.style.overflowY = contentHeight > maxHeight ? "auto" : "hidden";
   }
 
   function renderTagsRow(context, repo, client) {
@@ -440,7 +528,9 @@
     const status = element("span", "starcat-muted starcat-tags-status");
     const editButton = element("button", "btn btn-sm", "Edit");
     editButton.type = "button";
-    header.append(sectionTitle("Tags"), editButton);
+    const actions = element("div", "starcat-section-actions");
+    actions.append(status, editButton);
+    header.append(sectionTitle("Tags"), actions);
 
     const chips = element("div", "starcat-tag-chips");
     renderTagChips(chips, assigned, async (tag) => {
@@ -461,7 +551,7 @@
       editor.hidden = !editor.hidden;
     });
 
-    row.querySelector(".BorderGrid-cell").append(header, chips, editor, status);
+    row.querySelector(".BorderGrid-cell").append(header, chips, editor);
     return row;
   }
 
@@ -598,6 +688,7 @@
     }
 
     textarea.value = note.content || "";
+    fitNoteTextarea(textarea);
     if (status) {
       status.textContent = "Updated";
       window.setTimeout(() => {
@@ -1682,6 +1773,7 @@
 
   document.addEventListener("click", handleGitHubStarClick, true);
   window.addEventListener("popstate", () => scheduleRefresh("popstate", { force: true }));
+  window.addEventListener("resize", scheduleVisibleSidebarFit);
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && (changes.starcatCompanionServiceURL || changes.starcatCompanionPort || changes.starcatCompanionToken)) {
       contextCache.clear();

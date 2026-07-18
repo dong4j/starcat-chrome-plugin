@@ -3,6 +3,13 @@
   gap: 8px;
 }
 
+.starcat-recommendations-list {
+  position: relative;
+  max-height: min(820px, 78vh);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 .starcat-simrepo-card {
   border-color: var(--borderColor-default, #d0d7de);
   background: var(--bgColor-default, #ffffff);
@@ -101,8 +108,7 @@
 }
 
 .starcat-note {
-  min-height: 88px;
-  resize: vertical;
+  resize: none;
 }
 
 .starcat-note-header {
@@ -134,7 +140,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 0;
 }
 
 .starcat-library-header .h4 {
@@ -187,9 +193,17 @@
   white-space: nowrap;
 }
 
+.starcat-section-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+  gap: 8px;
+}
+
+.starcat-tags-status,
 .starcat-library-status {
-  display: block;
-  min-height: 16px;
+  white-space: nowrap;
 }
 
 .starcat-tag-chips {
