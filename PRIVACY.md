@@ -1,10 +1,10 @@
 # Privacy Policy
 
-Starcat Chrome Plugin is a local companion extension for Starcat. It enhances GitHub repository pages with context already available in the Starcat app.
+Starcat Browser Plugin is a local companion extension for Starcat. It enhances GitHub repository pages and supported Google Search result pages with context already available in the Starcat app.
 
-## Data Collection
+## Data Processing
 
-The extension does not collect, sell, or share personal data.
+The extension processes only the page and pairing data needed to provide its visible features. It does not sell personal data or transmit browser data to Starcat servers or third parties.
 
 The extension does not:
 
@@ -37,7 +37,7 @@ The Starcat app owns all business data, including repository context, private no
 
 The extension reads the current GitHub page URL to identify the repository owner and name, and injects Starcat UI into GitHub repository pages.
 
-It also runs on Google Search result pages to identify links to GitHub repositories. For up to eight visible GitHub repository results, it uses the repository owner and name to request local Starcat context and may display an `Open in Starcat` action and Health information. It does not store the full Google page or send it to Starcat servers.
+It also runs on supported Google Search result pages to identify links to GitHub repositories. For up to eight visible GitHub repository results, it uses the repository owner and name to request local Starcat context and may display an `Open in Starcat` action and Health information. It does not store the full Google page or send it to Starcat servers or third parties.
 
 ## Private Notes
 

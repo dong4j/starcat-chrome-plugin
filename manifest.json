@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Starcat Browser Plugin",
-  "description": "Show Starcat context on GitHub repository pages.",
+  "description": "Show local Starcat context on GitHub repository pages and Google Search results.",
   "version": "1.0.0",
   "icons": {
     "16": "src/assets/icons/icon-16.png",

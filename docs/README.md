@@ -20,4 +20,4 @@
 4. 复制 `STORE_LISTING.md` 字段到 Developer Dashboard。
 5. 按 `STORE_RELEASE_GUIDE.md` 打包和提交。
 
-> 当前不能仅凭本目录发布：Google 搜索页权限与 Local API Key 持久化策略仍需在提交前完成最终安全、隐私和人工验收。
+> Google 搜索页功能与权限已确认保留；当前仍不能仅凭本目录发布，Local API Key 持久化策略、真实素材、审核构建和人工验收仍需在提交前完成。

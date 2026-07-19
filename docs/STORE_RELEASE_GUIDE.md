@@ -3,8 +3,8 @@
 > 此文件已迁入 `docs/`，由 [发布资料索引](README.md) 统一导航。
 
 > 适用仓库：`starcat-chrome-plugin`
-> 当前源码基线：`manifest.json` 的 `0.1.0`
-> 最后核对：2026-07-12
+> 当前源码基线：`manifest.json` 的 `1.0.0`
+> 最后核对：2026-07-19
 > 目标渠道：Chrome Web Store（公开发布）
 
 本文档是 Starcat Chrome 插件的实际上架手册。它以当前 `manifest.json`、`src/` 和本仓库的隐私声明为准；不把计划中的功能当作已经实现的功能。
@@ -23,7 +23,7 @@
 
 | 项目 | 当前事实 | 上架资料中的表述 |
 |---|---|---|
-| Manifest | Manifest V3，版本 `0.1.0` | Chrome extension / MV3 |
+| Manifest | Manifest V3，版本 `1.0.0` | Chrome extension / MV3 |
 | 权限 | `storage` | 保存服务地址与 Local API Key，供用户后续配对 |
 | 页面范围 | `github.com`、Google 各地区 `/search` 页 | 不能写成“仅 GitHub” |
 | Host 权限 | GitHub、Google 搜索域名、`127.0.0.1`、`localhost` | 逐项解释，禁止泛称“访问所有网站” |
@@ -54,17 +54,17 @@ Google 搜索页并非空权限：当前源码会为已 Star 的 GitHub 搜索�
 
 | 字段 | 建议值 |
 |---|---|
-| Name | `Starcat for GitHub` |
+| Name | `Starcat Browser Plugin` |
 | Summary | `Bring your local Starcat repository context to GitHub and Google results.` |
 | Category | Productivity |
 | 适用平台说明 | Requires the Starcat app for macOS and local pairing. |
 
-若保持 manifest 中的 `Starcat Browser Plugin` 名称，商店标题、截图和审核备注也必须使用同一名称，避免审核员认为是不同产品。
+商店标题、截图和审核备注统一使用 manifest 中的 `Starcat Browser Plugin`，避免审核员认为是不同产品。
 
 ### 4.2 Detailed description
 
 ```text
-Starcat for GitHub brings the repository context you already keep in the Starcat macOS app to GitHub repository pages and Google search results that link to GitHub repositories.
+Starcat Browser Plugin brings the repository context you already keep in the Starcat macOS app to GitHub repository pages and Google search results that link to GitHub repositories.
 
 After you pair the extension with the Starcat app running on your Mac, you can:
 
@@ -84,9 +84,9 @@ Requires Starcat for macOS and one-time local pairing in the extension settings.
 
 | 字段 | 应填写内容 |
 |---|---|
-| Homepage URL | Starcat 官方产品页 |
-| Support URL | 公开、长期可访问的问题反馈页或 GitHub Issues 页面 |
-| Privacy policy | 公开、稳定的隐私政策 URL；内容必须以本文件第 2 节为准 |
+| Homepage URL | `https://starcat.ink` |
+| Support URL | `https://github.com/dong4j/starcat-chrome-plugin/issues` |
+| Privacy policy | `https://starcat.ink/privacy.html`；提交前须部署包含 Browser Plugin 专节的当前版本 |
 | Official URL（可选） | 经 Google Search Console 验证归属的 Starcat 官方域名 |
 
 不要填写会失效的下载链接、私有 GitHub 地址或 `raw.githubusercontent.com` 临时链接作为唯一隐私政策入口。
@@ -172,8 +172,8 @@ node --check src/shared/shared.js
 node --check src/popup/popup.js
 node --check src/options/options.js
 node --check src/content/content-script.js
-zip -r ../starcat-chrome-plugin-0.1.0.zip manifest.json src -x '*.DS_Store'
-unzip -l ../starcat-chrome-plugin-0.1.0.zip
+zip -r ../starcat-chrome-plugin-1.0.0.zip manifest.json src -x '*.DS_Store'
+unzip -l ../starcat-chrome-plugin-1.0.0.zip
 ```
 
 上传步骤：

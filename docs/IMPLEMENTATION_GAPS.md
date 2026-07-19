@@ -2,38 +2,27 @@
 
 本文档区分“必须改代码/配置”和“必须完成决策或人工材料”。未完成这些项时，`STORE_RELEASE_GUIDE.md` 的状态仍是 No-Go。
 
-## 必须改动
+## 已完成的代码与产品决策
 
-### 1. Manifest 描述必须覆盖 Google 搜索页
+### 1. Manifest 描述已覆盖 Google 搜索页
 
-当前 `manifest.json` 的 `description` 仍是：
-
-```text
-Show Starcat context on GitHub repository pages.
-```
-
-它遗漏了已经声明权限并实现的 Google 搜索结果增强。发布版本必须改为与实际范围一致的简短描述，例如：
+`manifest.json` 的 `description` 已统一为：
 
 ```text
 Show local Starcat context on GitHub repository pages and Google Search results.
 ```
 
-修改后同步复查 Chrome 商店 Summary、Detailed description、截图、`README*` 与 `PRIVACY.md`。
+Chrome 商店 Summary、Detailed description、截图要求、`README*` 与 `PRIVACY.md` 均按同一功能范围准备。
 
-## 必须做出产品/安全决策
-
-### 2. Google 搜索权限策略
+### 2. Google 搜索权限策略：保留
 
 当前 manifest 以 374 个 Google 域名作为必需 host permissions，content script 会自动在 `/search` 页运行。这是实际功能，不可在商店申报为 GitHub-only。
 
-发布前二选一：
+发布版保留 Google 功能，维持当前行为；发布资料完整披露其最小用途，并要求用真实 Google 截图和审核步骤证明用户价值。
 
-1. **保留 Google 功能**：维持当前行为，使用发布资料完整披露其最小用途，并用真实 Google 截图和审核步骤证明用户价值。
-2. **收敛为 GitHub-only**：删除 Google manifest patterns、Google 搜索 DOM 处理、相关 web-accessible resource matches 和所有商店资料中的 Google 表述。
+## 仍需完成的安全与人工材料
 
-若要在用户明确开启后才启用 Google，需另行设计 optional host permissions、授权 UI 和动态 content-script 注册；这不是仅改文案的工作。
-
-### 3. Local API Key 存储策略
+### 3. Local API Key 存储策略确认
 
 当前实现将 Local API Key 写入 `chrome.storage.local`，并在请求同机 `127.0.0.1` Companion API 时作为 Bearer token 使用。
 

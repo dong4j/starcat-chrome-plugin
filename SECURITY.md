@@ -17,7 +17,8 @@ The extension must not:
 - Expose the Starcat Local API Key in logs, page DOM, URLs, or remote requests.
 - Send Starcat private notes to any remote service.
 - Call GitHub, OpenSSF, AI providers, or Starcat backend services directly.
-- Broaden host permissions beyond the minimum needed for GitHub pages and `127.0.0.1`.
+- Broaden host permissions beyond the minimum needed for GitHub repository pages,
+  supported Google Search result pages, and the local Starcat service on `127.0.0.1`.
 
 ## Reporting a Vulnerability
 
