@@ -12,7 +12,7 @@
 | 价格 | Free |
 | 平台要求 | Requires the Starcat app for macOS and one-time local pairing. |
 | Homepage URL | `https://starcat.ink` |
-| Support URL | `https://github.com/dong4j/starcat-chrome-plugin/issues` |
+| Support URL | `https://github.com/starcat-app/starcat-chrome-plugin/issues` |
 | Privacy policy | `https://starcat.ink/privacy.html`（部署包含 Browser Plugin 专节的当前版本后使用） |
 
 商店名称、截图与审核备注统一使用 `Starcat Browser Plugin`。

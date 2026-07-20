@@ -85,7 +85,7 @@ Requires Starcat for macOS and one-time local pairing in the extension settings.
 | 字段 | 应填写内容 |
 |---|---|
 | Homepage URL | `https://starcat.ink` |
-| Support URL | `https://github.com/dong4j/starcat-chrome-plugin/issues` |
+| Support URL | `https://github.com/starcat-app/starcat-chrome-plugin/issues` |
 | Privacy policy | `https://starcat.ink/privacy.html`；提交前须部署包含 Browser Plugin 专节的当前版本 |
 | Official URL（可选） | 经 Google Search Console 验证归属的 Starcat 官方域名 |
 
