@@ -48,7 +48,6 @@ brew install --cask starcat
 - [starcat-wiki-api](https://github.com/starcat-app/starcat-wiki-api)
 - [starcat-recommend-api](https://github.com/starcat-app/starcat-recommend-api)
 - [starcat-discovery-api](https://github.com/starcat-app/starcat-discovery-api)
-- [starcat-license-api](https://github.com/dong4j/starcat-license-api)
 <!-- starcat-promo:end -->
 
 Starcat Chrome Plugin 是 Starcat 的 GitHub 与 Google 搜索结果增强插件。它在 GitHub repo 页面展示 Starcat 已有上下文，并在 Google 搜索结果中为已 Star 的 GitHub 仓库显示本机 Starcat 入口和 Health 信息；它不直接访问 GitHub API、Starcat 后端、OpenSSF 或 AI provider。
