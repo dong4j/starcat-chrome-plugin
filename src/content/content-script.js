@@ -397,7 +397,7 @@
       renderLibraryButton(button, nextState);
 
       try {
-        const response = await saveLibraryStateWithConfirmation(client, repo, nextState);
+        const response = await client.saveLibraryState(repo, nextState);
         updateCachedLibraryState(repo, response?.library_state || nextState);
         renderLibraryButton(button, currentLibraryState(latestRenderState?.context || context));
         status.textContent = "Saved";
@@ -435,19 +435,6 @@
     );
   }
 
-  async function saveLibraryStateWithConfirmation(client, repo, state) {
-    try {
-      return await client.saveLibraryState(repo, state);
-    } catch (error) {
-      if (state !== "outside_library" || error?.body?.error !== "using_removal_requires_confirmation") {
-        throw error;
-      }
-      const confirmed = window.confirm("This repo is marked as Using in Starcat. Removing it from Library will change status to Read. Continue?");
-      if (!confirmed) throw error;
-      return client.saveLibraryState(repo, state, { downgradeUsingStatus: true });
-    }
-  }
-
   function updateCachedLibraryState(repo, state) {
     const key = repo.fullName.toLowerCase();
     const cached = contextCache.get(key);
@@ -472,7 +459,6 @@
   }
 
   function libraryStateErrorMessage(error) {
-    if (error?.body?.error === "using_removal_requires_confirmation") return "Removal cancelled. Repo stayed in Library.";
     if (error?.status === 404) return "Repo is not available in Starcat yet.";
     return "Could not update Starcat Library. Check that Starcat is running.";
   }
