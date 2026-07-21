@@ -778,9 +778,7 @@
   function makeReadmeAITab(_readmeTab) {
     const tab = element("button", "starcat-readme-tab");
     tab.type = "button";
-    // 用 inline SVG 而不是外链图片:currentColor 可以继承 GitHub 主题变量,
-    // 避免 dark/dimmed/high contrast 下图标固定成黑色或白色。
-    tab.append(starcatMarkIcon("starcat-readme-tab__icon"), document.createTextNode("Starcat AI"));
+    tab.append(starcatBrandIcon("starcat-readme-tab__icon"), document.createTextNode("Starcat AI"));
     return tab;
   }
 
@@ -1498,7 +1496,7 @@
     button.dataset.starcatCompanion = "code-menu";
     button.dataset.starcatCodeOpen = "true";
     button.append(
-      starcatMarkIcon("starcat-code-item__icon"),
+      starcatBrandIcon("starcat-code-item__icon"),
       element("span", "starcat-code-native-action__label", "Open in Starcat app")
     );
     button.addEventListener("click", async () => {
@@ -1678,13 +1676,11 @@
   }
 
   function sectionTitle(title) {
-    // sidebar 三个 section 标题(Recommends/Notes/Tags)统一加 starcat icon,
-    // 跟 makeReadmeAITab / code menu 的 starcatMarkIcon 复用同一个内联 SVG
-    // 绘制风格(currentColor stroke,跟 GitHub 主题色联动)。不用 element(text)
-    // 是因为 textContent 会清掉已 append 的子节点,改用显式 append(icon)+append(text)
+    // 所有 Starcat 品牌入口复用扩展包内的官方 Logo；显式 append 文本是为了避免
+    // textContent 清掉已经挂载的图片节点。
     const node = element("h2", "h4 mb-3");
     node.append(
-      starcatMarkIcon("starcat-section-title__icon"),
+      starcatBrandIcon("starcat-section-title__icon"),
       document.createTextNode(title)
     );
     return node;
@@ -1768,27 +1764,13 @@
     return svg;
   }
 
-  function starcatMarkIcon(className) {
-    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("aria-hidden", "true");
-    svg.setAttribute("viewBox", "0 0 18 18");
-    svg.setAttribute("width", "16");
-    svg.setAttribute("height", "16");
-    svg.setAttribute("class", className);
-    svg.setAttribute("fill", "none");
-
-    const head = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    head.setAttribute("d", "M2.8 14.2V5.4L6 2L8 4.3H10L12 2L15.2 5.4V14.2Z");
-    head.setAttribute("stroke", "currentColor");
-    head.setAttribute("stroke-width", "1.8");
-    head.setAttribute("stroke-linejoin", "round");
-
-    const star = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    star.setAttribute("d", "M9 6.6L9.8 8.2L11.5 8.4L10.2 9.6L10.5 11.3L9 10.4L7.5 11.3L7.8 9.6L6.5 8.4L8.2 8.2Z");
-    star.setAttribute("fill", "currentColor");
-
-    svg.append(head, star);
-    return svg;
+  function starcatBrandIcon(className) {
+    const image = element("img", className);
+    image.src = chrome.runtime.getURL("src/assets/icons/icon-16.png");
+    image.alt = "";
+    image.decoding = "async";
+    image.setAttribute("aria-hidden", "true");
+    return image;
   }
 
   function showStarcatToast(message, isError = false) {
