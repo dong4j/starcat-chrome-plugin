@@ -22,7 +22,7 @@ The extension must not:
 
 ## Reporting a Vulnerability
 
-Please report security issues privately through the Starcat project maintainer channel before opening a public issue.
+Please report security issues through [GitHub Security Advisories](https://github.com/starcat-app/starcat-chrome-plugin/security/advisories/new) before opening a public issue.
 
 Include:
 
