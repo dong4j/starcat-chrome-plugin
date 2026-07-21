@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate WebExtension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check JavaScript syntax
+        run: find src -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: Validate manifest and referenced files
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          import re
+
+          manifest = json.loads(Path("manifest.json").read_text(encoding="utf-8"))
+          if manifest.get("manifest_version") != 3:
+              raise SystemExit("manifest_version must be 3")
+          if not re.fullmatch(r"\d+\.\d+\.\d+", manifest.get("version", "")):
+              raise SystemExit("manifest version must use X.Y.Z")
+
+          # 只收集 manifest 中代表仓库内文件的字段，避免把 URL 权限误判为路径。
+          referenced = set(manifest.get("icons", {}).values())
+          action = manifest.get("action", {})
+          options = manifest.get("options_ui", {})
+          background = manifest.get("background", {})
+          referenced.update(filter(None, [action.get("default_popup"), options.get("page"), background.get("service_worker")]))
+          referenced.update(background.get("scripts", []))
+          for entry in manifest.get("content_scripts", []):
+              referenced.update(entry.get("js", []))
+              referenced.update(entry.get("css", []))
+          for entry in manifest.get("web_accessible_resources", []):
+              referenced.update(path for path in entry.get("resources", []) if "*" not in path)
+
+          missing = sorted(path for path in referenced if not Path(path).is_file())
+          if missing:
+              raise SystemExit("manifest references missing files: " + ", ".join(missing))
+          print(f"validated manifest and {len(referenced)} referenced files")
+          PY
