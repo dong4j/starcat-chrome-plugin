@@ -1,3 +1,14 @@
+.starcat-sidebar-section {
+  box-sizing: border-box;
+  padding: 16px 0;
+  border-top: 1px solid var(--borderColor-muted, #d8dee4);
+  color: var(--fgColor-default, #1f2328);
+}
+
+.starcat-sidebar-section__content {
+  min-width: 0;
+}
+
 .starcat-sidebar-list {
   display: grid;
   gap: 8px;

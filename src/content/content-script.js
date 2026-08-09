@@ -4,7 +4,7 @@
  * GitHub uses client-side navigation, so this script treats URL/DOM changes as
  * hints and always debounces before reading the page. Starcat surfaces are split
  * across native GitHub regions instead of a single README panel:
- * - sidebar BorderGrid: recommendations and private notes;
+ * - repository sidebar: recommendations, library state, notes, and tags;
  * - pagehead actions: Health and OpenSSF signals;
  * - repository Code menu: Starcat wiki/action tab.
  */
@@ -154,44 +154,42 @@
   }
 
   function renderSidebarRows(context, repo, client, isPro) {
-    const sidebar = findSidebarBorderGrid();
+    const sidebar = findRepositorySidebar();
     if (!sidebar) return;
 
-    sidebar.append(renderRecommendationsRow(context, repo, client, isPro));
-    insertNoteRow(sidebar, renderLibraryRow(context, repo, client));
+    sidebar.container.append(renderRecommendationsRow(context, repo, client, isPro));
+    insertSidebarSectionAfterAbout(sidebar, renderLibraryRow(context, repo, client));
     if (context?.note?.editable) {
-      insertNoteRow(sidebar, renderNoteRow(context.note, repo, client));
+      insertSidebarSectionAfterAbout(sidebar, renderNoteRow(context.note, repo, client));
     }
     if (isStarcatLocalRepo(context)) {
-      insertNoteRow(sidebar, renderTagsRow(context, repo, client));
+      insertSidebarSectionAfterAbout(sidebar, renderTagsRow(context, repo, client));
     }
   }
 
-  function findSidebarBorderGrid() {
-    return document.querySelector('rails-partial[data-partial-name="codeViewRepoRoute.Sidebar"] .BorderGrid')
-      || document.querySelector(".Layout-sidebar .BorderGrid")
-      || document.querySelector("[data-testid='repository-sidebar'] .BorderGrid")
-      || document.querySelector("[data-testid='repository-sidebar']")
-      || document.querySelector(".Layout-sidebar");
-  }
-
-  function insertNoteRow(sidebar, noteRow) {
-    const aboutRow = findSidebarRowByTitle(sidebar, "About");
-    if (aboutRow?.parentElement) {
-      aboutRow.parentElement.insertBefore(noteRow, aboutRow.nextSibling);
-      return;
+  function findRepositorySidebar() {
+    // GitHub's generated CSS-module class names are not a stable extension API.
+    // Anchor on the Primer pane plus the visible About heading so future class
+    // hash changes do not silently remove every Starcat sidebar surface again.
+    const panes = [...document.querySelectorAll('[data-component="SplitPageLayout.Pane"]')];
+    for (const pane of panes) {
+      const aboutHeading = [...pane.querySelectorAll("h2, h3, [role='heading']")]
+        .find((heading) => textOf(heading) === "About");
+      const aboutSection = aboutHeading?.parentElement;
+      const container = aboutSection?.parentElement;
+      if (container && pane.contains(container)) {
+        return { container, aboutSection };
+      }
     }
-    sidebar.append(noteRow);
+    return null;
   }
 
-  function findSidebarRowByTitle(sidebar, title) {
-    return [...sidebar.querySelectorAll(".BorderGrid-row")]
-      .find((row) => [...row.querySelectorAll("h2, h3, .h4, .h5")]
-        .some((heading) => textOf(heading).startsWith(title)));
+  function insertSidebarSectionAfterAbout(sidebar, section) {
+    sidebar.container.insertBefore(section, sidebar.aboutSection.nextSibling);
   }
 
   function renderRecommendationsRow(context, repo, client, isPro) {
-    const row = borderGridRow("starcat-recommendations-row");
+    const row = sidebarSection("starcat-recommendations-row");
     const items = context?.recommendations || [];
     const state = proFeatureState(isPro, items.length > 0);
     const content = state === PRO_FEATURE_STATE.LOCKED
@@ -199,7 +197,7 @@
       : state === PRO_FEATURE_STATE.AVAILABLE
         ? recommendationsList(items, context, repo, client, row)
         : element("div", "starcat-muted", "No similar repositories available yet.");
-    row.querySelector(".BorderGrid-cell").append(
+    row.querySelector(".starcat-sidebar-section__content").append(
       sectionTitle("Recommends"),
       content
     );
@@ -380,7 +378,7 @@
   }
 
   function renderLibraryRow(context, repo, client) {
-    const row = borderGridRow("starcat-library-row");
+    const row = sidebarSection("starcat-library-row");
     const state = currentLibraryState(context);
     const status = element("span", "starcat-muted starcat-library-status");
     const button = element("button", `starcat-library-button ${state === "in_library" ? "starcat-library-button--active" : ""}`.trim());
@@ -420,7 +418,7 @@
     const actions = element("div", "starcat-section-actions");
     actions.append(status, button);
     header.append(sectionTitle("Library"), actions);
-    row.querySelector(".BorderGrid-cell").append(header);
+    row.querySelector(".starcat-sidebar-section__content").append(header);
     return row;
   }
 
@@ -464,7 +462,7 @@
   }
 
   function renderNoteRow(note, repo, client) {
-    const row = borderGridRow("starcat-note-row");
+    const row = sidebarSection("starcat-note-row");
     const textarea = element("textarea", "form-control width-full starcat-note");
     const key = repo.fullName.toLowerCase();
     textarea.value = noteDrafts.has(key) ? noteDrafts.get(key) : note.content || "";
@@ -499,7 +497,7 @@
     });
 
     header.append(sectionTitle("Notes"), button);
-    row.querySelector(".BorderGrid-cell").append(header, textarea, status);
+    row.querySelector(".starcat-sidebar-section__content").append(header, textarea, status);
     fitNoteTextarea(textarea);
     window.requestAnimationFrame(() => {
       if (textarea.isConnected) fitNoteTextarea(textarea);
@@ -531,7 +529,7 @@
   }
 
   function renderTagsRow(context, repo, client) {
-    const row = borderGridRow("starcat-tags-row");
+    const row = sidebarSection("starcat-tags-row");
     const key = repo.fullName.toLowerCase();
     const assigned = Array.isArray(context?.tags) ? context.tags : [];
     const allTags = Array.isArray(context?.available_tags) ? context.available_tags : [];
@@ -563,7 +561,7 @@
       editor.hidden = !editor.hidden;
     });
 
-    row.querySelector(".BorderGrid-cell").append(header, chips, editor);
+    row.querySelector(".starcat-sidebar-section__content").append(header, chips, editor);
     return row;
   }
 
@@ -1667,12 +1665,12 @@
     return window.matchMedia?.("(prefers-color-scheme: dark)")?.matches === true;
   }
 
-  function borderGridRow(id) {
-    const row = element("div", "BorderGrid-row");
-    row.id = id;
-    row.dataset.starcatCompanion = "sidebar";
-    row.append(element("div", "BorderGrid-cell"));
-    return row;
+  function sidebarSection(id) {
+    const section = element("section", "starcat-sidebar-section");
+    section.id = id;
+    section.dataset.starcatCompanion = "sidebar";
+    section.append(element("div", "starcat-sidebar-section__content"));
+    return section;
   }
 
   function sectionTitle(title) {

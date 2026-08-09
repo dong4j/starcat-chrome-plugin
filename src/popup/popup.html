@@ -9,12 +9,47 @@
   </head>
   <body>
     <main class="popup">
-      <header class="header">
-        <h1>Starcat Browser Plugin</h1>
-        <p>Connect to the Starcat local plugin service.</p>
+      <header class="app-header">
+        <img class="app-icon" src="../assets/icons/icon-48.png" alt="">
+        <div class="app-heading">
+          <h1>Starcat Browser Plugin</h1>
+          <p>GitHub companion · Chrome</p>
+        </div>
+        <span id="version" class="version-badge" aria-label="Plugin version">v—</span>
       </header>
 
-      <form id="popup-form" class="form">
+      <section id="connection-card" class="card connection-card" data-state="checking" aria-labelledby="connection-heading">
+        <div class="section-heading">
+          <p id="connection-heading" class="eyebrow">Connection</p>
+          <div class="status-badge" aria-live="polite">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span id="connection-status">Checking</span>
+          </div>
+        </div>
+
+        <div class="connection-summary" aria-live="polite">
+          <h2 id="connection-title">Checking local connection…</h2>
+          <p id="connection-description">Looking for the Starcat app on this Mac.</p>
+        </div>
+
+        <dl class="metadata-list">
+          <div class="metadata-row">
+            <dt>Service URL</dt>
+            <dd><code id="connection-service-url">—</code></dd>
+          </div>
+          <div class="metadata-row">
+            <dt>Last checked</dt>
+            <dd id="last-checked">Checking…</dd>
+          </div>
+        </dl>
+      </section>
+
+      <form id="popup-form" class="card pairing-card">
+        <div class="pairing-heading">
+          <p class="eyebrow">Local pairing</p>
+          <p>Use the values from Starcat Settings → Integrations.</p>
+        </div>
+
         <label class="field">
           <span>Service URL</span>
           <input id="service-url" name="serviceURL" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:5001">
@@ -26,14 +61,20 @@
         </label>
 
         <div class="actions">
-          <button id="save" type="submit" class="primary">Save</button>
-          <button id="test" type="button">Test</button>
+          <button id="save" type="submit">Save</button>
+          <button id="test" type="button" class="primary">Test Connection</button>
         </div>
 
-        <p id="status" class="status" role="status" aria-live="polite"></p>
-
-        <button id="open-options" type="button" class="link-button">Open full options</button>
+        <p id="form-feedback" class="form-feedback" role="status" aria-live="polite"></p>
       </form>
+
+      <button id="open-options" type="button" class="options-link">
+        <span>
+          <strong>Open full options</strong>
+          <small>Theme, language, setup and troubleshooting</small>
+        </span>
+        <span class="options-arrow" aria-hidden="true">→</span>
+      </button>
     </main>
 
     <script src="../shared/shared.js"></script>
